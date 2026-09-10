@@ -210,6 +210,19 @@ export const weatherApi = {
   get: (city: string) => http.get<Weather>('/weather', { params: { city } }),
 }
 
+export interface AppSettings {
+  llm_base_url: string
+  llm_api_key: string
+  llm_model: string
+  amap_key: string
+  weather_provider: string
+}
+
+export const settingsApi = {
+  get: () => http.get<AppSettings>('/settings'),
+  update: (data: Partial<AppSettings>) => http.put<AppSettings>('/settings', data),
+}
+
 export const replanApi = {
   run: (tripId: number) => http.post<ReplanResult>(`/trips/${tripId}/replan`),
 }

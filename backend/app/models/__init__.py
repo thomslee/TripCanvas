@@ -3,6 +3,7 @@ from .user import User
 from .trip import Trip, TripDay
 from .itinerary import ItineraryNode, ItineraryEdge
 from .poi import Poi, AiRecommendation, UserFeedback
+from .setting import AppSetting
 
 __all__ = [
     "User",
@@ -13,4 +14,5 @@ __all__ = [
     "Poi",
     "AiRecommendation",
     "UserFeedback",
+    "AppSetting",
 ]

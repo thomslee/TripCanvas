@@ -16,9 +16,12 @@
 
 后端敏感配置通过 `backend/.env` 注入（已 gitignore）。首次运行：
 
-```bash
+
+
+```
 cp backend/.env.example backend/.env
-# 编辑 backend/.env，填入 DB_PASSWORD 等真实值
+
+\# 编辑 backend/.env，填入 DB\_PASSWORD 等真实值
 ```
 
 `.env.example` 为配置模板，包含数据库连接与 Redis（预留）字段。
@@ -28,7 +31,7 @@ cp backend/.env.example backend/.env
 
 
 ```
-E:\travel\\
+E:\travel\\\\
 
 ├── trip-plan\        # 方案文档（HTML）
 
@@ -40,9 +43,9 @@ E:\travel\\
 
 │   ├── run.py        # 启动入口（127.0.0.1:8001）
 
-│   ├── init\_db.py    # 建库建表脚本
+│   ├── init\\\_db.py    # 建库建表脚本
 
-│   └── test\_api.py   # API 集成测试脚本
+│   └── test\\\_api.py   # API 集成测试脚本
 
 ├── frontend\         # Vue3 前端
 
@@ -87,7 +90,7 @@ npm run dev
 
 * [x] 前后端脚手架（Vue3 + FastAPI + MySQL）
 
-* [x] 8 张表数据模型落地（trips /trip\_days/itinerary\_nodes /itinerary\_edges/pois /ai\_recommendations/user\_feedback /users）
+* [x] 8 张表数据模型落地（trips /trip\_days/itinerary\_nodes/itinerary\_edges/pois/ai\_recommendations/user\_feedback/users）
 
 * [x] 行程创建：航班输入 → 自动计算天数（往返日期差 + 1）→ 生成每天记录
 
@@ -183,9 +186,21 @@ POI 相关 API：`GET/POST /api/pois/search|seed`、`GET/DELETE /api/trips/{id}/
 
 * [x] 导出按钮位于操作行（AI 规划 / 删除）下方，次要边框样式，不干扰主操作
 
-## 下一步（M6：真实数据接入）
+### M6：设置模块（已完成）
 
-接入高德真实 POI 检索（替换 / 补充示例库）与可选 LLM 润色；旅行中模式（天气联动、实时调整）。
+* [x] **外部连接配置**：新增 `app_settings` 表（key-value），支持配置大模型 API（地址 / Key / 模型名称）、高德地图 Key、天气服务提供商
+
+* [x] **API**：`GET /api/settings`（敏感字段脱敏为 ••••••••）、`PUT /api/settings`（批量更新，None 不修改、空串清除）
+
+* [x] **设置页面**：`/settings`，三个分区（大模型 API / 高德地图 / 天气服务），API Key 为密码框，已配置时显示「已配置，留空不修改」，保存后即时生效无需重启
+
+* [x] **入口**：全局 nav-bar 右上角齿轮图标，所有页面可直达设置
+
+* [x] 配置存数据库运行时读取，后续接入真实 LLM 规划与高德 POI 搜索时直接调用 `setting_service.get_value(db, key)`
+
+## 下一步（M7：真实数据接入）
+
+接入高德真实 POI 检索（替换 / 补充示例库）与 LLM 行程规划（调用设置中配置的大模型 API）；旅行中模式（天气联动、实时调整）。
 
 ## 备注
 

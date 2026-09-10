@@ -6,6 +6,7 @@ const router = createRouter({
     { path: '/', name: 'list', component: () => import('../views/TripList.vue') },
     { path: '/create', name: 'create', component: () => import('../views/TripCreate.vue') },
     { path: '/trips/:id', name: 'detail', component: () => import('../views/TripDetail.vue') },
+    { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue') },
   ],
 })
 
