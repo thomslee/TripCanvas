@@ -4,7 +4,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge, Poi
+from ..deps import get_current_user
+from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge, Poi, User
 from ..schemas.itinerary import (
     NodeCreate, NodeOut, NodePatch, EdgeOut, EdgePatch,
     DayTimelineOut, TimelineOut, MovePayload, ReorderPayload, TripPoiOut, PoiSummary,
@@ -16,11 +17,21 @@ router = APIRouter(prefix="/api", tags=["itinerary"])
 _TYPE_NAMES = {"hotel": "酒店", "attraction": "景点", "restaurant": "餐厅"}
 
 
-def _get_trip(db: Session, trip_id: int) -> Trip:
+def _get_trip(db: Session, trip_id: int, user: User = None) -> Trip:
     trip = db.get(Trip, trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="行程不存在")
+    if user and trip.user_id is not None and trip.user_id != user.id:
+        raise HTTPException(status_code=403, detail="无权访问该行程")
     return trip
+
+
+def _own_node(db: Session, node_id: int, user: User) -> ItineraryNode:
+    node = db.get(ItineraryNode, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="节点不存在")
+    _get_trip(db, node.trip_id, user)
+    return node
 
 
 def _get_day(db: Session, trip_id: int, day_no: int) -> TripDay:
@@ -56,17 +67,19 @@ def _node_out(node: ItineraryNode, poi: Poi | None) -> NodeOut:
 
 
 @router.post("/trips/{trip_id}/seed", status_code=200)
-def seed_trip(trip_id: int, db: Session = Depends(get_db)):
+def seed_trip(trip_id: int, db: Session = Depends(get_db),
+              current_user: User = Depends(get_current_user)):
     """为行程生成默认骨架（已有节点则跳过）。"""
-    trip = _get_trip(db, trip_id)
+    trip = _get_trip(db, trip_id, current_user)
     created = seed_planner.seed_trip_timeline(db, trip)
     return {"seeded": created, "message": "已生成默认骨架" if created else "已有内容，跳过生成"}
 
 
 @router.get("/trips/{trip_id}/timeline", response_model=TimelineOut)
-def get_timeline(trip_id: int, db: Session = Depends(get_db)):
+def get_timeline(trip_id: int, db: Session = Depends(get_db),
+                 current_user: User = Depends(get_current_user)):
     """行程轨迹时间线：每天窗口 + 节点起止时间 + 交通边 + 冲突检测。"""
-    trip = _get_trip(db, trip_id)
+    trip = _get_trip(db, trip_id, current_user)
     days = (db.query(TripDay)
             .filter(TripDay.trip_id == trip_id)
             .order_by(TripDay.day_no)
@@ -81,9 +94,10 @@ def get_timeline(trip_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/trips/{trip_id}/pois", response_model=list[TripPoiOut])
-def list_trip_pois(trip_id: int, db: Session = Depends(get_db)):
+def list_trip_pois(trip_id: int, db: Session = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
     """行程中使用的真实地点清单（去重），供侧边列表展示与删除联动。"""
-    _get_trip(db, trip_id)
+    _get_trip(db, trip_id, current_user)
     rows = (db.query(ItineraryNode.poi_id, func.count(ItineraryNode.id))
             .filter(ItineraryNode.trip_id == trip_id,
                     ItineraryNode.poi_id.isnot(None))
@@ -106,9 +120,10 @@ def list_trip_pois(trip_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/trips/{trip_id}/pois/{poi_id}", status_code=204)
-def delete_trip_poi(trip_id: int, poi_id: int, db: Session = Depends(get_db)):
+def delete_trip_poi(trip_id: int, poi_id: int, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
     """从行程删除该真实地点：轨迹图中关联节点一并删除，边自动重建。"""
-    _get_trip(db, trip_id)
+    _get_trip(db, trip_id, current_user)
     nodes = (db.query(ItineraryNode)
              .filter(ItineraryNode.trip_id == trip_id,
                      ItineraryNode.poi_id == poi_id)
@@ -133,9 +148,10 @@ def delete_trip_poi(trip_id: int, poi_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/trips/{trip_id}/days/{day_no}/nodes", response_model=NodeOut, status_code=201)
-def add_node(trip_id: int, day_no: int, data: NodeCreate, db: Session = Depends(get_db)):
+def add_node(trip_id: int, day_no: int, data: NodeCreate, db: Session = Depends(get_db),
+             current_user: User = Depends(get_current_user)):
     """新增节点：支持关联真实 POI 与插入到指定节点之后。"""
-    _get_trip(db, trip_id)
+    _get_trip(db, trip_id, current_user)
     day = _get_day(db, trip_id, day_no)
     poi = _resolve_poi(db, data.poi_id)
 
@@ -188,9 +204,10 @@ def add_node(trip_id: int, day_no: int, data: NodeCreate, db: Session = Depends(
 
 
 @router.patch("/nodes/{node_id}", response_model=NodeOut)
-def patch_node(node_id: int, data: NodePatch, db: Session = Depends(get_db)):
+def patch_node(node_id: int, data: NodePatch, db: Session = Depends(get_db),
+               current_user: User = Depends(get_current_user)):
     """修改节点：名称 / 类型 / 时长 / 备注 / 关联真实 POI（poi_id=0 清除）。"""
-    node = _get_node(db, node_id)
+    node = _own_node(db, node_id, current_user)
     patch = data.model_dump(exclude_unset=True)
 
     poi = None
@@ -216,9 +233,10 @@ def patch_node(node_id: int, data: NodePatch, db: Session = Depends(get_db)):
 
 
 @router.delete("/nodes/{node_id}", status_code=204)
-def delete_node(node_id: int, db: Session = Depends(get_db)):
+def delete_node(node_id: int, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     """删除节点并重建当天边。"""
-    node = _get_node(db, node_id)
+    node = _own_node(db, node_id, current_user)
     trip_id, day_id = node.trip_id, node.day_id
     db.delete(node)
     db.flush()
@@ -233,9 +251,10 @@ def delete_node(node_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/nodes/{node_id}/move", status_code=200)
-def move_node(node_id: int, payload: MovePayload, db: Session = Depends(get_db)):
+def move_node(node_id: int, payload: MovePayload, db: Session = Depends(get_db),
+              current_user: User = Depends(get_current_user)):
     """节点当天内上移/下移（顺序交换后重建边）。"""
-    node = _get_node(db, node_id)
+    node = _own_node(db, node_id, current_user)
     try:
         seed_planner.move_node(db, node, payload.direction)
     except ValueError as e:
@@ -244,11 +263,16 @@ def move_node(node_id: int, payload: MovePayload, db: Session = Depends(get_db))
 
 
 @router.patch("/edges/{edge_id}", response_model=EdgeOut)
-def patch_edge(edge_id: int, data: EdgePatch, db: Session = Depends(get_db)):
+def patch_edge(edge_id: int, data: EdgePatch, db: Session = Depends(get_db),
+               current_user: User = Depends(get_current_user)):
     """切换交通方式（未给耗时则按默认值重算）或微调耗时。"""
     edge = db.get(ItineraryEdge, edge_id)
     if not edge:
         raise HTTPException(status_code=404, detail="边不存在")
+    # 通过 from_node 校验行程归属
+    from_node = db.get(ItineraryNode, edge.from_node_id)
+    if from_node:
+        _get_trip(db, from_node.trip_id, current_user)
 
     patch = data.model_dump(exclude_unset=True)
     if "transport" in patch and patch["transport"]:
@@ -267,9 +291,10 @@ def patch_edge(edge_id: int, data: EdgePatch, db: Session = Depends(get_db)):
 
 @router.post("/trips/{trip_id}/days/{day_no}/reorder", status_code=200)
 def reorder_day(trip_id: int, day_no: int, payload: ReorderPayload,
-                db: Session = Depends(get_db)):
+                db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     """按节点 id 列表重排当天顺序（拖拽/批量排序提交），并重建边。"""
-    _get_trip(db, trip_id)
+    _get_trip(db, trip_id, current_user)
     day = _get_day(db, trip_id, day_no)
     order_map = {nid: i for i, nid in enumerate(payload.node_ids, start=1)}
     if len(order_map) != len(payload.node_ids):
@@ -293,9 +318,10 @@ def reorder_day(trip_id: int, day_no: int, payload: ReorderPayload,
 
 
 @router.post("/trips/{trip_id}/replan", status_code=200)
-def replan_trip(trip_id: int, db: Session = Depends(get_db)):
+def replan_trip(trip_id: int, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     """AI 二次推荐：按评分 / 类型分布 / 营业时间对现有节点智能重排（不增删节点）。"""
-    trip = _get_trip(db, trip_id)
+    trip = _get_trip(db, trip_id, current_user)
     result = replan_service.replan_trip(db, trip)
-    timeline = get_timeline(trip_id, db)
+    timeline = get_timeline(trip_id, db, current_user)
     return {**result, "timeline": timeline}

@@ -3,14 +3,21 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { useTripsStore } from '../stores/trips'
+import { useUserStore } from '../stores/user'
 import { tripsApi } from '../api'
 
 const store = useTripsStore()
+const userStore = useUserStore()
 const router = useRouter()
 
 onMounted(() => {
   store.fetchTrips().catch((e) => showToast(e.message))
 })
+
+function onLogout() {
+  userStore.logout()
+  router.push('/login')
+}
 
 function fmtDate(d: string): string {
   return d ? d.slice(0, 10) : ''
@@ -58,15 +65,27 @@ const statusText: Record<string, string> = {
     </div>
 
     <template v-else-if="store.trips.length">
+      <div class="user-bar">
+        <div class="user-info">
+          <div class="user-avatar">{{ (userStore.user?.nickname || userStore.user?.username || '?').charAt(0).toUpperCase() }}</div>
+          <div class="user-meta">
+            <span class="user-name">{{ userStore.user?.nickname || userStore.user?.username }}</span>
+            <span class="user-role" :class="userStore.user?.role">{{ userStore.user?.role === 'admin' ? '管理员' : '普通用户' }}</span>
+          </div>
+        </div>
+        <div class="user-actions">
+          <button v-if="userStore.isAdmin" class="settings-btn" @click="router.push('/settings')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            设置
+          </button>
+          <button class="logout-btn" @click="onLogout">退出</button>
+        </div>
+      </div>
       <div class="list-head">
         <span class="list-title">我的行程</span>
-        <button class="settings-btn" @click="router.push('/settings')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-          设置
-        </button>
       </div>
       <div
         v-for="t in store.trips"
@@ -92,7 +111,27 @@ const statusText: Record<string, string> = {
       </div>
     </template>
 
-    <div v-else class="tc-empty">
+    <template v-else>
+      <div class="user-bar">
+        <div class="user-info">
+          <div class="user-avatar">{{ (userStore.user?.nickname || userStore.user?.username || '?').charAt(0).toUpperCase() }}</div>
+          <div class="user-meta">
+            <span class="user-name">{{ userStore.user?.nickname || userStore.user?.username }}</span>
+            <span class="user-role" :class="userStore.user?.role">{{ userStore.user?.role === 'admin' ? '管理员' : '普通用户' }}</span>
+          </div>
+        </div>
+        <div class="user-actions">
+          <button v-if="userStore.isAdmin" class="settings-btn" @click="router.push('/settings')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            设置
+          </button>
+          <button class="logout-btn" @click="onLogout">退出</button>
+        </div>
+      </div>
+      <div class="tc-empty">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none">
         <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="#7a8e93" stroke-width="1.6" stroke-linejoin="round"/>
         <path d="M9 10.5l2 2 4-4" stroke="#7a8e93" stroke-width="1.6" stroke-linejoin="round"/>
@@ -100,6 +139,7 @@ const statusText: Record<string, string> = {
       <div>还没有行程</div>
       <div style="font-size: 12px; margin-top: 4px">输入往返航班，开始第一段旅程</div>
     </div>
+    </template>
 
     <div class="fab">
       <van-button type="primary" round block icon="plus" @click="router.push('/create')">
@@ -111,6 +151,70 @@ const statusText: Record<string, string> = {
 
 <style scoped>
 .trip-card {
+  cursor: pointer;
+}
+.user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px 14px;
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.user-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0e7c7e, #12a5a8);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tc-ink);
+}
+.user-role {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
+}
+.user-role.admin {
+  background: #fff3e0;
+  color: #e65100;
+}
+.user-role.user {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logout-btn {
+  border: 1px solid #d8e0de;
+  background: #fff;
+  color: #7a8a87;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 4px 12px;
   cursor: pointer;
 }
 .list-head {

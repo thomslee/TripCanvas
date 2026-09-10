@@ -89,7 +89,7 @@ def compute_day_windows(depart_date: date, arrive_time: time | None,
     return windows
 
 
-def create_trip_with_days(db, data) -> Trip:
+def create_trip_with_days(db, data, user_id: int = None) -> Trip:
     """创建行程主表 + 每天记录（支持多城市 dest_cities）。"""
     total_days = compute_total_days(data.depart_date, data.return_date)
 
@@ -107,6 +107,7 @@ def create_trip_with_days(db, data) -> Trip:
     title = data.title or build_title(cities_plan, total_days)
 
     trip = Trip(
+        user_id=user_id,
         title=title,
         depart_city=data.depart_city,
         dest_city=dest_city,
@@ -137,7 +138,7 @@ def create_trip_with_days(db, data) -> Trip:
     return trip
 
 
-def duplicate_trip(db, src_trip_id: int) -> Trip:
+def duplicate_trip(db, src_trip_id: int, user_id: int = None) -> Trip:
     """深拷贝行程：trip + days + nodes + edges（POI 关联保留，不复制 POI 本身）。"""
     from ..models import TripDay, ItineraryNode, ItineraryEdge
 
@@ -147,6 +148,7 @@ def duplicate_trip(db, src_trip_id: int) -> Trip:
 
     # 1. 复制 trip 主记录
     new_trip = Trip(
+        user_id=user_id,
         title=(src.title or "") + " 副本",
         depart_city=src.depart_city,
         dest_city=src.dest_city,

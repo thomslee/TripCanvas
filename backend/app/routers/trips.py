@@ -3,18 +3,30 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Trip
+from ..deps import get_current_user
+from ..models import Trip, User
 from ..schemas import TripCreate, TripOut, TripCreateOut, DayWindowOut
 from ..services import trip_planner
 
 router = APIRouter(prefix="/api/trips", tags=["trips"])
 
 
+def _own_trip(db: Session, trip_id: int, user: User) -> Trip:
+    """获取并校验行程归属。"""
+    trip = db.get(Trip, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="行程不存在")
+    if trip.user_id is not None and trip.user_id != user.id:
+        raise HTTPException(status_code=403, detail="无权访问该行程")
+    return trip
+
+
 @router.post("", response_model=TripCreateOut, status_code=201)
-def create_trip(data: TripCreate, db: Session = Depends(get_db)):
+def create_trip(data: TripCreate, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     """创建行程：航班输入 → 自动算天数 → 生成每天记录与时间窗口。"""
     try:
-        trip = trip_planner.create_trip_with_days(db, data)
+        trip = trip_planner.create_trip_with_days(db, data, user_id=current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -36,34 +48,33 @@ def create_trip(data: TripCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=list[TripOut])
-def list_trips(db: Session = Depends(get_db)):
-    """行程列表，按创建时间倒序。"""
-    return db.query(Trip).order_by(Trip.created_at.desc()).all()
+def list_trips(db: Session = Depends(get_db),
+               current_user: User = Depends(get_current_user)):
+    """当前用户的行程列表，按创建时间倒序。"""
+    return (db.query(Trip)
+            .filter(Trip.user_id == current_user.id)
+            .order_by(Trip.created_at.desc()).all())
 
 
 @router.get("/{trip_id}", response_model=TripOut)
-def get_trip(trip_id: int, db: Session = Depends(get_db)):
-    trip = db.get(Trip, trip_id)
-    if not trip:
-        raise HTTPException(status_code=404, detail="行程不存在")
-    return trip
+def get_trip(trip_id: int, db: Session = Depends(get_db),
+             current_user: User = Depends(get_current_user)):
+    return _own_trip(db, trip_id, current_user)
 
 
 @router.delete("/{trip_id}", status_code=204)
-def delete_trip(trip_id: int, db: Session = Depends(get_db)):
-    trip = db.get(Trip, trip_id)
-    if not trip:
-        raise HTTPException(status_code=404, detail="行程不存在")
+def delete_trip(trip_id: int, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    trip = _own_trip(db, trip_id, current_user)
     db.delete(trip)
     db.commit()
 
 
 @router.patch("/{trip_id}", response_model=TripOut)
-def update_trip(trip_id: int, payload: dict, db: Session = Depends(get_db)):
+def update_trip(trip_id: int, payload: dict, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     """轻量更新：title / status / preferences 等。"""
-    trip = db.get(Trip, trip_id)
-    if not trip:
-        raise HTTPException(status_code=404, detail="行程不存在")
+    trip = _own_trip(db, trip_id, current_user)
     allowed = {"title", "status", "preferences", "ai_version"}
     for k, v in payload.items():
         if k in allowed:
@@ -74,9 +85,11 @@ def update_trip(trip_id: int, payload: dict, db: Session = Depends(get_db)):
 
 
 @router.post("/{trip_id}/duplicate", response_model=TripOut, status_code=201)
-def duplicate_trip(trip_id: int, db: Session = Depends(get_db)):
+def duplicate_trip(trip_id: int, db: Session = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
     """深拷贝行程（含每天、节点、交通边；POI 关联保留）。"""
+    _own_trip(db, trip_id, current_user)
     try:
-        return trip_planner.duplicate_trip(db, trip_id)
+        return trip_planner.duplicate_trip(db, trip_id, user_id=current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -1,13 +1,33 @@
 import axios from 'axios'
 
+const TOKEN_KEY = 'tripcanvas_token'
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+export function setToken(token: string | null) {
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
+}
+
 const http = axios.create({
   baseURL: '/api',
   timeout: 15000,
 })
 
+http.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 http.interceptors.response.use(
   (resp) => resp,
   (err) => {
+    if (err?.response?.status === 401) {
+      setToken(null)
+      if (location.pathname !== '/login') location.href = '/login'
+    }
     const msg = err?.response?.data?.detail || err.message || '请求失败'
     return Promise.reject(new Error(msg))
   },
@@ -225,6 +245,26 @@ export const settingsApi = {
 
 export const replanApi = {
   run: (tripId: number) => http.post<ReplanResult>(`/trips/${tripId}/replan`),
+}
+
+export interface AuthUser {
+  id: number
+  username: string
+  nickname: string | null
+  role: 'admin' | 'user'
+}
+
+export interface AuthResult {
+  token: string
+  user: AuthUser
+}
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    http.post<AuthResult>('/auth/login', { username, password }),
+  register: (username: string, password: string, nickname?: string) =>
+    http.post<AuthResult>('/auth/register', { username, password, nickname }),
+  me: () => http.get<AuthUser>('/auth/me'),
 }
 
 export default http
