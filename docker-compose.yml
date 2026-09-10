@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./backend
+    container_name: trip-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8002:8002"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8002
+      - DB_HOST=news-mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=trip_canvas
+    networks:
+      - news_news_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  news_news_net:
+    external: true
