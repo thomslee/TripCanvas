@@ -10,7 +10,18 @@
 
 * 后端：FastAPI + SQLAlchemy 2.0 + Pydantic v2
 
-* 数据库：MySQL 8（本机 root/123456，库 `trip_canvas`）
+* 数据库：MySQL 8（库 `trip_canvas`，密码通过 `backend/.env` 配置，勿提交真实密码）
+
+## 环境配置
+
+后端敏感配置通过 `backend/.env` 注入（已 gitignore）。首次运行：
+
+```bash
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，填入 DB_PASSWORD 等真实值
+```
+
+`.env.example` 为配置模板，包含数据库连接与 Redis（预留）字段。
 
 ## 目录结构
 

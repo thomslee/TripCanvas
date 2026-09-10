@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
 
-    # 数据库（默认本机 MySQL8，root/123456）
+    # 数据库（通过 .env 或环境变量配置，勿在代码中写死真实密码）
     DB_HOST: str = "127.0.0.1"
     DB_PORT: int = 3306
     DB_USER: str = "root"
-    DB_PASSWORD: str = "123456"
+    DB_PASSWORD: str = ""
     DB_NAME: str = "trip_canvas"
 
     # Redis（M3 AI 任务队列再用，先留配置）
