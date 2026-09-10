@@ -59,6 +59,10 @@ export interface Trip {
   status: string
   preferences: Record<string, unknown> | null
   dest_cities: DestCity[] | null
+  depart_transport: string | null
+  arrive_station: string | null
+  return_transport: string | null
+  depart_station: string | null
   ai_version: string | null
   created_at: string
   days: TripDay[]
@@ -81,6 +85,10 @@ export interface TripCreatePayload {
   depart_time?: string | null
   preferences?: Record<string, unknown>
   dest_cities?: DestCity[]
+  depart_transport?: string | null
+  arrive_station?: string | null
+  return_transport?: string | null
+  depart_station?: string | null
 }
 
 export interface TripCreateResult {

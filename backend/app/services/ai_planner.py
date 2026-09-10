@@ -22,6 +22,8 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
     else:
         city_detail = city_summary
 
+    transport_names = {'plane': '飞机', 'train': '高铁', 'ship': '客轮', 'car': '自驾'}
+
     lines = [
         '你是一个专业的旅游行程规划助手。请根据以下信息生成详细的每日行程安排。',
         '',
@@ -32,10 +34,27 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
     ]
     if trip.arrive_time:
         lines.append('- 第一天到达时间：%s' % trip.arrive_time.strftime('%H:%M'))
+    if trip.depart_transport:
+        lines.append('- 去程交通：%s%s' % (
+            transport_names.get(trip.depart_transport, trip.depart_transport),
+            '，到达%s' % trip.arrive_station if trip.arrive_station else ''))
     if trip.depart_time:
         lines.append('- 最后一天返程时间：%s' % trip.depart_time.strftime('%H:%M'))
+    if trip.return_transport:
+        lines.append('- 返程交通：%s%s' % (
+            transport_names.get(trip.return_transport, trip.return_transport),
+            '，从%s出发' % trip.depart_station if trip.depart_station else ''))
     if trip.preferences:
-        lines.append('- 用户偏好：%s' % json.dumps(trip.preferences, ensure_ascii=False))
+        prefs = trip.preferences
+        if isinstance(prefs, dict):
+            req = prefs.get('requirements') or prefs.get('travel_requirements')
+            if req:
+                lines.append('- 旅游要求：%s' % req)
+            for k, v in prefs.items():
+                if k not in ('requirements', 'travel_requirements'):
+                    lines.append('- %s：%s' % (k, v))
+        else:
+            lines.append('- 用户偏好：%s' % json.dumps(prefs, ensure_ascii=False))
 
     lines += [
         '',
@@ -59,7 +78,7 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
 
 
 def _match_poi(db: Session, name: str, city: str, node_type: str) -> Poi | None:
-    """按名称模糊匹配内置 POI。"""
+    """按名称模糊匹配内置 POI；未匹配则创建 AI 来源的自定义 POI。"""
     if not name or len(name) < 2:
         return None
     pois = db.query(Poi).filter(Poi.poi_type == node_type).all()
@@ -73,7 +92,16 @@ def _match_poi(db: Session, name: str, city: str, node_type: str) -> Poi | None:
     for p in pois:
         if name in p.name or p.name in name:
             return p
-    return None
+    # 未匹配：创建 AI 来源的自定义 POI
+    poi = Poi(
+        city=city,
+        poi_type=node_type,
+        name=name,
+        source='ai',
+    )
+    db.add(poi)
+    db.flush()
+    return poi
 
 
 def _normalize_type(t: str) -> str:

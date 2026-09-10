@@ -41,26 +41,40 @@ def _fmt(t: time) -> str:
     return t.strftime("%H:%M")
 
 
+# 交通方式对应的到达通勤（分钟）和返程提前量（分钟）
+TRANSPORT_COMMUTE = {
+    "plane": (60, 180, "机场"),
+    "train": (30, 60, "车站"),
+    "ship": (45, 90, "码头"),
+    "car": (0, 0, "自驾"),
+}
+
+
 def compute_day_windows(depart_date: date, arrive_time: time | None,
                         return_date: date, depart_time: time | None,
                         total_days: int,
-                        cities: list[str] | None = None) -> list[dict]:
+                        cities: list[str] | None = None,
+                        depart_transport: str | None = None,
+                        return_transport: str | None = None) -> list[dict]:
     """计算每天的可用游玩时间窗口，供 M2 轨迹图 / M3 AI 求解使用。
 
     规则：
-    - D1：若当日到达（arrive_time 非空），起点 = 到达 + 机场通勤；否则默认 08:00
-    - 末日：终点 = 起飞 - 机场提前量；若未填起飞时间，默认 22:00 结束
+    - D1：若当日到达（arrive_time 非空），起点 = 到达 + 交通通勤（飞机60/高铁30/客轮45/自驾0）；否则默认 08:00
+    - 末日：终点 = 出发 - 交通提前量（飞机180/高铁60/客轮90/自驾0）；若未填出发时间，默认 22:00 结束
     - 中间日：08:00 - 22:00
     - 多城市：当天城市与前一天不同（跨城日），起点顺延城际交通时长（默认 3h）并在 note 标注
     """
+    arrive_commute, _, arrive_label = TRANSPORT_COMMUTE.get(depart_transport or "plane", (60, 180, "机场"))
+    _, return_lead, return_label = TRANSPORT_COMMUTE.get(return_transport or "plane", (60, 180, "机场"))
+
     windows = []
     for i in range(1, total_days + 1):
         d = depart_date + timedelta(days=i - 1)
         start, end, note = DAY_START, DAY_END, "全天可安排"
 
         if i == 1 and arrive_time is not None:
-            start = _add_minutes(arrive_time, AIRPORT_COMMUTE_MIN)
-            note = "到达后开始（含机场通勤）"
+            start = _add_minutes(arrive_time, arrive_commute)
+            note = "到达后开始（含%s通勤%d分钟）" % (arrive_label, arrive_commute) if arrive_commute > 0 else "到达后直接开始"
         if i == 1 and arrive_time is None:
             note = "到达时刻未填，默认全天"
 
@@ -69,8 +83,8 @@ def compute_day_windows(depart_date: date, arrive_time: time | None,
             note = f"由{cities[i - 2]}抵{cities[i - 1]}（城际交通约{INTERCITY_MIN // 60}h）"
 
         if i == total_days and depart_time is not None:
-            end = _add_minutes(depart_time, -AIRPORT_LEAD_MIN)
-            note = "起飞前返程（提前 3h 到机场）"
+            end = _add_minutes(depart_time, -return_lead)
+            note = "返程前结束（提前%d分钟到%s）" % (return_lead, return_label) if return_lead > 0 else "返程前结束"
         if i == total_days and depart_time is None:
             note = "返程起飞时刻未填，默认全天"
 
@@ -119,6 +133,10 @@ def create_trip_with_days(db, data, user_id: int = None) -> Trip:
         status="draft",
         preferences=data.preferences,
         dest_cities=cities_plan,
+        depart_transport=getattr(data, 'depart_transport', None),
+        arrive_station=getattr(data, 'arrive_station', None),
+        return_transport=getattr(data, 'return_transport', None),
+        depart_station=getattr(data, 'depart_station', None),
     )
     db.add(trip)
     db.flush()  # 取 trip.id

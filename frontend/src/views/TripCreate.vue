@@ -13,10 +13,22 @@ const form = reactive({
   returnDate: [] as string[],
   arriveTime: [] as string[],
   departTime: [] as string[],
+  departTransport: 'plane',
+  arriveStation: '',
+  returnTransport: 'plane',
+  departStation: '',
+  requirements: '',
   pace: 'relaxed',
   budget: 'mid',
   travelers: 1,
 })
+
+const transportOptions = [
+  { name: '飞机', value: 'plane' },
+  { name: '高铁', value: 'train' },
+  { name: '客轮', value: 'ship' },
+  { name: '自驾', value: 'car' },
+]
 
 const showDepartDate = ref(false)
 const showReturnDate = ref(false)
@@ -126,8 +138,15 @@ async function onSubmit() {
       arrive_time: jTime(form.arriveTime),
       return_date: jDate(form.returnDate),
       depart_time: jTime(form.departTime),
-      preferences: { pace: form.pace, budget: form.budget, travelers: form.travelers },
+      preferences: {
+        pace: form.pace, budget: form.budget, travelers: form.travelers,
+        ...(form.requirements.trim() ? { requirements: form.requirements.trim() } : {}),
+      },
       dest_cities: form.destCities.map((c) => ({ city: c.city.trim(), days: c.days })),
+      depart_transport: form.departTransport,
+      arrive_station: form.arriveStation.trim() || null,
+      return_transport: form.returnTransport,
+      depart_station: form.departStation.trim() || null,
     })
     result.value = data
     showResult.value = true
@@ -187,12 +206,28 @@ function fmtWin(w: DayWindow): string {
       <van-cell title="到达时间（可选）" is-link
         :value="form.arriveTime.length ? jTime(form.arriveTime)! : ''" placeholder="选填"
         @click="showArriveTime = true" />
+      <div class="transport-row">
+        <span class="transport-label">去程交通</span>
+        <van-radio-group v-model="form.departTransport" direction="horizontal">
+          <van-radio v-for="o in transportOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
+        </van-radio-group>
+      </div>
+      <van-field v-model="form.arriveStation" label="到达站点" placeholder="如 丽江三义机场 / 大理站（选填）"
+        maxlength="64" :disabled="form.departTransport === 'car'" />
 
       <van-cell title="返程日期" is-link :value="form.returnDate.length ? jDate(form.returnDate) : ''"
         placeholder="必填" @click="showReturnDate = true" />
-      <van-cell title="起飞时间（可选）" is-link
+      <van-cell title="返程出发时间（可选）" is-link
         :value="form.departTime.length ? jTime(form.departTime)! : ''" placeholder="选填"
         @click="showDepartTime = true" />
+      <div class="transport-row">
+        <span class="transport-label">返程交通</span>
+        <van-radio-group v-model="form.returnTransport" direction="horizontal">
+          <van-radio v-for="o in transportOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
+        </van-radio-group>
+      </div>
+      <van-field v-model="form.departStation" label="出发站点" placeholder="如 丽江三义机场 / 大理站（选填）"
+        maxlength="64" :disabled="form.returnTransport === 'car'" />
     </div>
 
     <div class="sec-label">偏好（用于后续 AI 推荐）</div>
@@ -212,6 +247,11 @@ function fmtWin(w: DayWindow): string {
       <div class="pref-row">
         <span class="pref-label">人数</span>
         <van-stepper v-model="form.travelers" min="1" max="20" />
+      </div>
+      <div class="pref-row pref-col">
+        <span class="pref-label">旅游要求</span>
+        <van-field v-model="form.requirements" type="textarea" rows="2" autosize
+          placeholder="选填，如：住在古城附近、喜欢安静的客栈、带老人小孩、必去某景点等" maxlength="200" />
       </div>
     </div>
 
@@ -355,6 +395,23 @@ function fmtWin(w: DayWindow): string {
 .pref-label {
   font-size: 13.5px;
   color: var(--tc-ink-2);
+}
+.pref-col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.transport-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--tc-line);
+}
+.transport-label {
+  font-size: 13.5px;
+  color: var(--tc-ink-2);
+  flex: none;
 }
 .win-row {
   background: #fbfdfc;

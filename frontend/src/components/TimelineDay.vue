@@ -28,6 +28,11 @@ function fmtDur(m: number): string {
   return `${mm}m`
 }
 
+/** 真实 POI：有关联且非 AI 自动生成（有营业时间/票价等详细信息） */
+function isRealPoi(node: ItineraryNode): boolean {
+  return !!(node.poi && node.poi.source && node.poi.source !== 'ai')
+}
+
 function fmtOverflow(m: number): string {
   const h = Math.floor(m / 60)
   const mm = m % 60
@@ -189,23 +194,23 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
 
     <div class="track">
       <template v-for="(node, i) in day.nodes" :key="node.id">
-        <div class="node-card" @click="node.poi ? openDetail(node) : openReplace(node)">
+        <div class="node-card" @click="isRealPoi(node) ? openDetail(node) : openReplace(node)">
           <div class="node-icon" :style="{ color: NODE_TYPE_COLORS[node.node_type], background: NODE_TYPE_COLORS[node.node_type] + '1a' }"
             v-html="nodeIcons[node.node_type] || ''"></div>
           <div class="node-main">
             <div class="node-name-row">
               <span class="node-name">{{ node.name }}</span>
               <span class="node-type">{{ NODE_TYPE_NAMES[node.node_type] }}</span>
-              <span v-if="node.poi" class="poi-badge">真实</span>
+              <span v-if="isRealPoi(node)" class="poi-badge">真实</span>
               <span v-else class="ph-badge">占位</span>
             </div>
             <div class="node-time">
               {{ node.start_time }}–{{ node.end_time }}
               <span class="node-dur">{{ fmtDur(node.duration_minutes) }}</span>
             </div>
-            <div v-if="node.poi" class="poi-meta">
-              <span v-if="node.poi.open_hours">营业 {{ node.poi.open_hours }}</span>
-              <span v-if="node.poi.ticket_price">{{ node.poi.ticket_price }}</span>
+            <div v-if="isRealPoi(node)" class="poi-meta">
+              <span v-if="node.poi!.open_hours">营业 {{ node.poi!.open_hours }}</span>
+              <span v-if="node.poi!.ticket_price">{{ node.poi!.ticket_price }}</span>
             </div>
             <div v-else class="ph-tip">点击替换为真实地点</div>
             <div class="node-ops" @click.stop>

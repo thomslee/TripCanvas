@@ -22,6 +22,10 @@ class Trip(Base):
     status = Column(String(16), nullable=False, default="draft")  # draft/planning/active/done
     preferences = Column(JSON, nullable=True)
     dest_cities = Column(JSON, nullable=True)   # 多城市目的地：[{city, days}, ...]；单城市=[{dest_city, total_days}]
+    depart_transport = Column(String(16), nullable=True)   # 去程交通方式：plane/train/ship/car
+    arrive_station = Column(String(64), nullable=True)     # 到达站点：机场/高铁站名
+    return_transport = Column(String(16), nullable=True)   # 返程交通方式
+    depart_station = Column(String(64), nullable=True)     # 返程出发站点
     ai_version = Column(String(32), nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

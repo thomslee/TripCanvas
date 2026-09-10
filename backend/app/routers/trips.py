@@ -35,6 +35,8 @@ def create_trip(data: TripCreate, db: Session = Depends(get_db),
         trip.return_date, trip.depart_time,
         trip.total_days,
         cities=[d.city or trip.dest_city for d in trip.days],
+        depart_transport=trip.depart_transport,
+        return_transport=trip.return_transport,
     )
     messages = []
     if trip.arrive_time is None:
