@@ -10,7 +10,7 @@ from ..schemas.itinerary import (
     NodeCreate, NodeOut, NodePatch, EdgeOut, EdgePatch,
     DayTimelineOut, TimelineOut, MovePayload, ReorderPayload, TripPoiOut, PoiSummary,
 )
-from ..services import seed_planner, replan_service, ai_planner
+from ..services import seed_planner, replan_service, ai_planner, amap_service
 
 router = APIRouter(prefix="/api", tags=["itinerary"])
 
@@ -338,5 +338,15 @@ def ai_plan(trip_id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=502, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    timeline = get_timeline(trip_id, db, current_user)
+    return {**result, "timeline": timeline}
+
+
+@router.post("/trips/{trip_id}/auto-replace-pois", status_code=200)
+def auto_replace_pois(trip_id: int, db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """一键将 AI 推荐的节点批量替换为高德真实 POI，搜索不到的保留原样。"""
+    trip = _get_trip(db, trip_id, current_user)
+    result = amap_service.auto_replace_pois(db, trip)
     timeline = get_timeline(trip_id, db, current_user)
     return {**result, "timeline": timeline}

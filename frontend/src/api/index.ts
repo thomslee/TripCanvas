@@ -270,6 +270,17 @@ export const aiPlanApi = {
   run: (tripId: number) => http.post<AIPlanResult>(`/trips/${tripId}/ai-plan`),
 }
 
+export interface AutoReplaceResult {
+  replaced: number
+  failed: number
+  items: { node_name: string; old: string; new: string | null; status: string }[]
+  timeline: Timeline
+}
+
+export const autoReplaceApi = {
+  run: (tripId: number) => http.post<AutoReplaceResult>(`/trips/${tripId}/auto-replace-pois`),
+}
+
 export interface AuthUser {
   id: number
   username: string

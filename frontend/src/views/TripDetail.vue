@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import html2canvas from 'html2canvas'
-import { tripsApi, timelineApi, poiApi, weatherApi, replanApi, aiPlanApi,
+import { tripsApi, timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi,
   type Timeline, type TripPoi, type Weather } from '../api'
 import TimelineDay from '../components/TimelineDay.vue'
 import TripPois from '../components/TripPois.vue'
@@ -110,6 +110,29 @@ async function onSeed() {
 const hasNodes = computed(() => {
   return (timeline.value?.days ?? []).some((d) => d.nodes.length > 0)
 })
+
+/* ---------- 一键替换为高德真实地点 ---------- */
+const autoReplacing = ref(false)
+
+async function onAutoReplace() {
+  if (autoReplacing.value) return
+  autoReplacing.value = true
+  try {
+    const { data } = await autoReplaceApi.run(tripId)
+    timeline.value = data.timeline
+    title.value = data.timeline.title ?? ''
+    await loadPois()
+    if (data.failed > 0) {
+      showToast(`已替换 ${data.replaced} 个，${data.failed} 个未找到可手动替换`)
+    } else {
+      showToast(`已一键替换 ${data.replaced} 个真实地点`)
+    }
+  } catch (e) {
+    showToast((e as Error).message || '替换失败')
+  } finally {
+    autoReplacing.value = false
+  }
+}
 
 const dateRange = computed(() => {
   const days = timeline.value?.days ?? []
@@ -351,6 +374,9 @@ watch(
         <div class="op-row">
           <button class="ai-btn" :disabled="replanning" @click="onReplan">
             {{ replanning ? '规划中…' : 'AI 规划' }}
+          </button>
+          <button class="replace-btn" :disabled="autoReplacing" @click="onAutoReplace">
+            {{ autoReplacing ? '替换中…' : '一键替换真实地点' }}
           </button>
           <button class="del-btn" @click="onDelete">删除行程</button>
         </div>
@@ -628,6 +654,21 @@ watch(
   flex: none;
 }
 .ai-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.replace-btn {
+  border: 1px solid #1677ff;
+  background: #1677ff;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 5px 14px;
+  cursor: pointer;
+  flex: none;
+}
+.replace-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
