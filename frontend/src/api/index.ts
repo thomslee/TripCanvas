@@ -97,7 +97,7 @@ export interface TripCreateResult {
   messages: string[]
 }
 
-export type NodeType = 'hotel' | 'attraction' | 'restaurant'
+export type NodeType = 'hotel' | 'attraction' | 'restaurant' | 'station'
 export type Transport = 'walk' | 'taxi' | 'bus' | 'metro' | 'bike' | 'car' | 'train' | 'ship' | 'plane'
 
 export interface Poi {

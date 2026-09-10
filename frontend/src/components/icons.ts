@@ -6,6 +6,7 @@ export const nodeIcons: Record<string, string> = {
   hotel: S('<path d="M3 21V5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v16"/><path d="M16 10h4a1 1 0 0 1 1 1v10"/><path d="M6 8h2M10 8h2M6 12h2M10 12h2M6 16h2M10 16h2M3 21h20"/>'),
   attraction: S('<circle cx="12" cy="7" r="3"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6"/><path d="M2 21h20"/>'),
   restaurant: S('<path d="M5 3v6a2 2 0 0 0 4 0V3M7 3v18M17 3c-1.5 2-2.5 4-2.5 7 0 2 .5 4 2.5 5 2-1 2.5-3 2.5-5 0-3-1-5-2.5-7Z"/>'),
+  station: S('<rect x="4" y="3" width="16" height="14" rx="2"/><path d="M4 11h16"/><circle cx="8.5" cy="14.5" r="1"/><circle cx="15.5" cy="14.5" r="1"/><path d="M8 17l-2 4M16 17l2 4"/>'),
 }
 
 export const transportIcons: Record<string, string> = {

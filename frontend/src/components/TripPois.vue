@@ -16,9 +16,9 @@ const emit = defineEmits<{ (e: 'refresh'): void }>()
 
 const busy = ref(false)
 
-const TYPE_NAMES: Record<string, string> = { hotel: '酒店', attraction: '景点', restaurant: '餐厅' }
+const TYPE_NAMES: Record<string, string> = { hotel: '酒店', attraction: '景点', restaurant: '餐厅', station: '交通' }
 const TYPE_COLORS: Record<string, string> = {
-  hotel: '#5b7cfa', attraction: '#0e9f6e', restaurant: '#e2872e',
+  hotel: '#5b7cfa', attraction: '#0e9f6e', restaurant: '#e2872e', station: '#8b5cf6',
 }
 
 /* ---------- 插入指定位置 ---------- */

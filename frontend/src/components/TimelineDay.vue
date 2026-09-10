@@ -15,9 +15,9 @@ const TRANSPORT_NAMES: Record<string, string> = {
   plane: '飞机', train: '火车', ship: '轮船', car: '自驾',
   taxi: '打车', bus: '公交', metro: '地铁', bike: '自行车', walk: '步行',
 }
-const NODE_TYPE_NAMES: Record<string, string> = { hotel: '酒店', attraction: '景点', restaurant: '餐厅' }
+const NODE_TYPE_NAMES: Record<string, string> = { hotel: '酒店', attraction: '景点', restaurant: '餐厅', station: '交通' }
 const NODE_TYPE_COLORS: Record<string, string> = {
-  hotel: '#5b7cfa', attraction: '#0e9f6e', restaurant: '#e2872e',
+  hotel: '#5b7cfa', attraction: '#0e9f6e', restaurant: '#e2872e', station: '#8b5cf6',
 }
 
 function fmtDur(m: number): string {

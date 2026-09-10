@@ -24,6 +24,7 @@ const TYPES: { label: string; value: NodeType | null }[] = [
   { label: '酒店', value: 'hotel' },
   { label: '景点', value: 'attraction' },
   { label: '餐厅', value: 'restaurant' },
+  { label: '交通', value: 'station' },
 ]
 
 watch(

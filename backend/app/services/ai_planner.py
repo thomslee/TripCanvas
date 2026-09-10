@@ -9,8 +9,11 @@ _TYPE_MAP = {
     '景点': 'attraction', '景区': 'attraction', '公园': 'attraction',
     '餐厅': 'restaurant', '美食': 'restaurant', '吃饭': 'restaurant',
     '酒店': 'hotel', '住宿': 'hotel', '客栈': 'hotel', '民宿': 'hotel',
+    '高铁站': 'station', '火车站': 'station', '动车站': 'station', '车站': 'station',
+    '机场': 'station', '航站楼': 'station', '汽车站': 'station', '客运中心': 'station',
+    '码头': 'station', '港口': 'station', '客运站': 'station',
 }
-_VALID_TYPES = {'hotel', 'attraction', 'restaurant'}
+_VALID_TYPES = {'hotel', 'attraction', 'restaurant', 'station'}
 
 
 def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
@@ -59,17 +62,18 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
     lines += [
         '',
         '【输出要求】',
-        '1. 每天安排 3-6 个节点，类型只能是 hotel（酒店）、attraction（景点）、restaurant（餐厅）',
-        '2. 每天第一个和最后一个节点通常是酒店（到达日和离开日可根据航班时间调整）',
-        '3. 餐厅应安排在中午和晚上的用餐时间附近',
-        '4. duration_minutes 为建议停留分钟数，酒店设为 0',
-        '5. 节点名称要具体真实，如"大理古城"、"洱海边"、"白族风味餐厅"',
-        '6. note 字段可选，写一句简短的游玩建议或推荐理由',
+        '1. 每天安排 3-6 个节点，类型只能是 hotel（酒店）、attraction（景点）、restaurant（餐厅）、station（交通枢纽：高铁站/机场/火车站/码头）',
+        '2. 到达日（第1天）第一个节点应为到达的交通站点（station），如"丽江三义机场"、"济南西站"，然后是酒店；离开日最后一个节点应为出发的交通站点（station）',
+        '3. 每天第一个和最后一个节点通常是酒店（到达日和离开日根据交通时间调整）',
+        '4. 餐厅应安排在中午和晚上的用餐时间附近',
+        '5. duration_minutes 为建议停留分钟数，酒店和交通站点设为 0',
+        '6. 节点名称要具体真实，如"大理古城"、"洱海边"、"白族风味餐厅"、"丽江三义机场"',
+        '7. note 字段可选，写一句简短的游玩建议或推荐理由',
         '',
         '【输出格式】严格输出 JSON，不要输出任何其他文字：',
         '{',
         '  "days": [',
-        '    {"day_no": 1, "nodes": [{"name": "...", "type": "hotel|attraction|restaurant", "duration_minutes": 120, "note": "..."}]},',
+        '    {"day_no": 1, "nodes": [{"name": "...", "type": "hotel|attraction|restaurant|station", "duration_minutes": 120, "note": "..."}]},',
         '    {"day_no": 2, "nodes": [...]},',
         '  ]',
         '}',
@@ -154,7 +158,8 @@ def ai_plan_trip(db: Session, trip: Trip) -> dict:
         nodes_data = (ai_day or {}).get('nodes', [])
         if not nodes_data:
             # 降级：用种子骨架的模板
-            nodes_data = _fallback_nodes(city, day.day_no, trip.total_days)
+            nodes_data = _fallback_nodes(city, day.day_no, trip.total_days,
+                                         trip.arrive_station, trip.depart_station)
 
         sort_order = 1
         for nd in nodes_data:
@@ -209,13 +214,16 @@ def ai_plan_trip(db: Session, trip: Trip) -> dict:
     }
 
 
-def _fallback_nodes(city: str, day_no: int, total_days: int) -> list[dict]:
+def _fallback_nodes(city: str, day_no: int, total_days: int,
+                    arrive_station: str | None = None, depart_station: str | None = None) -> list[dict]:
     """大模型返回为空时的降级模板。"""
     is_first = day_no == 1
     is_last = day_no == total_days
     nodes = []
     if is_first:
-        nodes = [
+        if arrive_station:
+            nodes.append({'name': arrive_station, 'type': 'station', 'duration_minutes': 0})
+        nodes += [
             {'name': '%s酒店' % city, 'type': 'hotel', 'duration_minutes': 0},
             {'name': '%s古城' % city, 'type': 'attraction', 'duration_minutes': 120},
             {'name': '当地特色餐厅', 'type': 'restaurant', 'duration_minutes': 60},
@@ -226,6 +234,8 @@ def _fallback_nodes(city: str, day_no: int, total_days: int) -> list[dict]:
             {'name': '周边景点', 'type': 'attraction', 'duration_minutes': 90},
             {'name': '当地特色餐厅', 'type': 'restaurant', 'duration_minutes': 60},
         ]
+        if depart_station:
+            nodes.append({'name': depart_station, 'type': 'station', 'duration_minutes': 0})
     else:
         nodes = [
             {'name': '%s酒店' % city, 'type': 'hotel', 'duration_minutes': 0},

@@ -15,6 +15,7 @@ _TYPE_KEYWORDS = {
     "hotel": ["酒店", "宾馆", "旅馆", "民宿", "客栈", "住宿", "度假村"],
     "restaurant": ["餐厅", "餐饮", "美食", "小吃", "快餐", "火锅", "烧烤", "咖啡", "茶馆", "酒吧", "食堂", "把子肉", "面馆"],
     "attraction": ["景点", "景区", "公园", "广场", "博物馆", "纪念馆", "寺庙", "塔", "湖", "山", "古镇", "古城", "游乐园", "动物园"],
+    "station": ["高铁站", "火车站", "动车站", "车站", "机场", "航站楼", "汽车站", "客运中心", "码头", "港口", "客运站", "进站口", "出站口"],
 }
 
 
@@ -176,7 +177,7 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
             matched = name_cache[name]
         else:
             # 搜索高德，加类型后缀提高匹配率
-            type_suffix = {"hotel": "酒店", "restaurant": "餐厅", "attraction": ""}.get(node.node_type, "")
+            type_suffix = {"hotel": "酒店", "restaurant": "餐厅", "attraction": "", "station": ""}.get(node.node_type, "")
             keyword = name if any(k in name for k in ["酒店", "宾馆", "客栈", "餐厅", "饭店", "景区", "公园", "古镇", "古城"]) else name + type_suffix
             try:
                 results = search_pois(db, keyword=keyword, city=city, limit=10)
