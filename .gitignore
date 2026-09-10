@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+backend/.venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# Build output
+frontend/dist/
+dist/
+
+# Environment
+.env
+.env.local
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Dev verification artifacts (screenshots, Chrome debug profiles)
+trip-plan/_shots/
+trip-plan/_backup/
+cdp_profile*/

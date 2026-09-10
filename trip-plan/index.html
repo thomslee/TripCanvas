@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>途迹 TripCanvas · 旅游行程智能规划系统 方案 v0.1</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink:#0F2529; --ink-2:#3D565C; --ink-3:#7A8E93;
+    --bg:#F4F7F5; --card:#FFFFFF; --line:#DDE7E3;
+    --teal:#0E7C7E; --teal-deep:#0A5A5C; --teal-soft:#DFF0EC;
+    --orange:#E2872E; --orange-soft:#FCEEDB;
+    --violet:#6F5CC0; --violet-soft:#EDE9F9;
+    --red:#C94F4A;
+    --font-display:'Noto Serif SC','Songti SC','SimSun',serif;
+    --font-body:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+    --shadow:0 1px 2px rgba(15,37,41,.04),0 8px 24px rgba(15,37,41,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--font-body);background:var(--bg);color:var(--ink);line-height:1.7;font-size:15px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px;}
+  a{color:var(--teal);text-decoration:none;}
+
+  /* ===== 顶栏 ===== */
+  header.site{position:sticky;top:0;z-index:50;background:rgba(244,247,245,.92);border-bottom:1px solid var(--line);}
+  .nav{display:flex;align-items:center;gap:18px;height:56px;overflow-x:auto;scrollbar-width:none;}
+  .nav::-webkit-scrollbar{display:none;}
+  .brand{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--ink);white-space:nowrap;}
+  .brand .mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--teal),#1FA58E);display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  .nav a.lnk{color:var(--ink-2);font-size:13.5px;white-space:nowrap;padding:4px 2px;border-bottom:2px solid transparent;}
+  .nav a.lnk:hover{color:var(--teal);border-bottom-color:var(--teal);}
+  .nav .ver{margin-left:auto;font-size:12px;color:var(--ink-3);white-space:nowrap;}
+
+  /* ===== Hero ===== */
+  .hero{background:linear-gradient(180deg,#EAF3F0 0%,var(--bg) 100%);border-bottom:1px solid var(--line);overflow:hidden;}
+  .hero .wrap{display:grid;grid-template-columns:1.15fr .85fr;gap:34px;padding-top:56px;padding-bottom:52px;align-items:center;}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--teal);background:var(--teal-soft);border:1px solid #BFE0DA;padding:4px 12px;border-radius:999px;letter-spacing:.5px;}
+  .hero h1{font-family:var(--font-display);font-weight:900;font-size:46px;line-height:1.16;margin:18px 0 14px;letter-spacing:.5px;}
+  .hero h1 em{font-style:normal;color:var(--teal);}
+  .hero p.lead{font-size:16px;color:var(--ink-2);max-width:52ch;margin-bottom:22px;}
+  .hero .stats{display:flex;flex-wrap:wrap;gap:12px;}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 16px;box-shadow:var(--shadow);}
+  .stat b{display:block;font-family:var(--font-display);font-size:21px;color:var(--teal-deep);line-height:1.2;}
+  .stat span{font-size:12px;color:var(--ink-3);}
+  .hero .tags{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px;}
+  .tag{font-size:12px;color:var(--ink-2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 11px;}
+  .hero-visual{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:22px 18px;position:relative;}
+  .hero-visual .cap{font-size:12px;color:var(--ink-3);margin-top:10px;text-align:center;}
+  .hv-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .hv-title b{font-size:13.5px;color:var(--ink);}
+  .hv-title span{font-size:11.5px;color:var(--ink-3);border:1px solid var(--line);border-radius:999px;padding:2px 10px;}
+  .hv-flow{display:flex;flex-direction:column;gap:0;}
+  .node{display:flex;align-items:center;gap:11px;background:#FBFDFC;border:1px solid var(--line);border-radius:12px;padding:9px 12px;}
+  .node .ic{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;}
+  .node .nm{font-size:13.5px;font-weight:600;color:var(--ink);}
+  .node .tm{font-size:11.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap;}
+  .edge{display:flex;align-items:center;gap:9px;padding:2px 6px 2px 28px;color:var(--ink-3);font-size:11.5px;}
+  .edge .vl{position:relative;width:2px;height:34px;background:#B9CCC6;border-radius:1px;flex:none;}
+  .edge .vl::after{content:"";position:absolute;left:-4px;bottom:-3px;border-style:solid;border-width:7px 5px 0 5px;border-color:#B9CCC6 transparent transparent transparent;}
+  .edge .ei{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+
+  /* ===== 章节通用 ===== */
+  section.block{padding:52px 0 8px;}
+  .sec-head{margin-bottom:26px;}
+  .sec-head .no{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--orange);letter-spacing:2px;}
+  .sec-head h2{font-family:var(--font-display);font-size:28px;font-weight:700;margin-top:4px;color:var(--ink);}
+  .sec-head p{color:var(--ink-2);font-size:14.5px;margin-top:8px;max-width:66ch;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);}
+
+  /* ===== 核心思路 ===== */
+  .idea{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .idea .card{padding:20px;}
+  .idea .idx{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--teal);letter-spacing:1px;}
+  .idea h3{font-size:16.5px;font-weight:700;margin:6px 0 8px;}
+  .idea p{font-size:13.5px;color:var(--ink-2);}
+  .idea .arrow{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:12px;gap:10px;}
+  .idea .arrow svg{flex:none;}
+
+  /* ===== 功能模块 ===== */
+  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .mod{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;}
+  .mod .mhead{display:flex;align-items:center;gap:10px;}
+  .mod .mic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .mod .k{font-size:12px;font-weight:600;letter-spacing:1px;}
+  .mod h3{font-size:15.5px;font-weight:700;}
+  .mod p{font-size:13px;color:var(--ink-2);flex:1;}
+  .mod ul{list-style:none;display:flex;flex-direction:column;gap:4px;}
+  .mod li{font-size:12.5px;color:var(--ink-2);display:flex;gap:7px;align-items:baseline;}
+  .mod li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--teal);flex:none;transform:translateY(-1px);}
+
+  /* ===== 流程图 ===== */
+  .flow{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:26px 20px;}
+  .flow-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch;}
+  .fstep{position:relative;border:1px solid var(--line);border-radius:13px;padding:14px 12px;background:#FBFDFC;display:flex;flex-direction:column;gap:6px;}
+  .fstep .fn{font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--teal);}
+  .fstep .ft{font-size:13.5px;font-weight:700;}
+  .fstep .fd{font-size:12px;color:var(--ink-2);}
+  .fstep.hot{border-color:#BFE0DA;background:var(--teal-soft);}
+  .fstep.hot .fn{color:var(--teal-deep);}
+  .f-arrow{display:none;}
+  .flow-foot{margin-top:14px;font-size:12.5px;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;}
+
+  /* ===== 表格 ===== */
+  table.tb{width:100%;border-collapse:collapse;font-size:13px;}
+  table.tb th{background:#F0F6F4;text-align:left;font-weight:600;padding:9px 12px;color:var(--ink);border-bottom:1px solid var(--line);font-size:12.5px;}
+  table.tb td{padding:9px 12px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:top;}
+  table.tb tr:last-child td{border-bottom:none;}
+  table.tb td b{color:var(--ink);font-weight:600;}
+  .pill{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 9px;white-space:nowrap;}
+  .pill.h{background:var(--teal-soft);color:var(--teal-deep);}
+  .pill.s{background:var(--orange-soft);color:var(--orange);}
+  .pill.v{background:var(--violet-soft);color:var(--violet);}
+  .pill.r{background:#FBE6E3;color:var(--red);}
+
+  /* ===== 架构分层 ===== */
+  .layers{display:flex;flex-direction:column;gap:12px;}
+  .layer{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px 18px;}
+  .layer .lt{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .layer .lt .badge{font-size:12px;font-weight:700;border-radius:8px;padding:3px 10px;color:#fff;}
+  .layer .lt b{font-size:15px;}
+  .layer .lt span{font-size:12px;color:var(--ink-3);}
+  .lmods{display:flex;flex-wrap:wrap;gap:10px;}
+  .lm{flex:1 1 150px;min-width:0;background:#FBFDFC;border:1px solid var(--line);border-radius:12px;padding:10px 13px;}
+  .lm b{display:block;font-size:13px;color:var(--ink);}
+  .lm span{font-size:11.5px;color:var(--ink-3);}
+  .lflow{display:flex;align-items:center;gap:8px;color:var(--ink-3);font-size:11.5px;padding:2px 0 0 6px;}
+  .lflow .ln{flex:1;height:0;border-top:2px dashed #B9CCC6;position:relative;}
+
+  /* ===== 手机示意 ===== */
+  .phone-wrap{display:grid;grid-template-columns:1fr 1.05fr;gap:26px;align-items:start;}
+  .phone{width:300px;max-width:100%;margin:0 auto;background:#0F2529;border-radius:36px;padding:12px;box-shadow:0 20px 50px rgba(15,37,41,.25);}
+  .phone .screen{background:#F6F8F7;border-radius:27px;overflow:hidden;height:610px;display:flex;flex-direction:column;}
+  .p-status{display:flex;justify-content:space-between;padding:9px 16px 5px;font-size:10.5px;color:var(--ink);font-weight:600;}
+  .p-top{background:#fff;border-bottom:1px solid var(--line);padding:10px 14px;}
+  .p-top .t1{font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:space-between;}
+  .p-top .t1 span{color:var(--ink-3);font-size:11px;font-weight:400;}
+  .p-days{display:flex;gap:6px;margin-top:9px;}
+  .p-day{flex:1;text-align:center;font-size:11px;padding:5px 0;border-radius:9px;color:var(--ink-2);background:#F1F5F3;font-weight:600;}
+  .p-day.on{background:var(--teal);color:#fff;}
+  .p-body{flex:1;overflow:hidden;padding:12px 12px 6px;display:flex;flex-direction:column;gap:0;}
+  .p-node{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;}
+  .p-node .ic{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;}
+  .p-node .nm{font-size:12.5px;font-weight:600;line-height:1.3;}
+  .p-node .sb{font-size:10px;color:var(--ink-3);}
+  .p-node .ctr{margin-left:auto;display:flex;align-items:center;gap:2px;}
+  .p-node .ctr button{width:22px;height:22px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--teal);font-size:13px;font-weight:700;line-height:1;cursor:pointer;}
+  .p-node .ctr .dur{font-size:10.5px;color:var(--ink-2);width:34px;text-align:center;font-weight:600;}
+  .p-edge{display:flex;align-items:center;gap:7px;padding:2px 4px 2px 24px;color:var(--ink-3);font-size:10.5px;}
+  .p-edge .vl{position:relative;width:2px;height:28px;background:#B9CCC6;border-radius:1px;flex:none;}
+  .p-edge .vl::after{content:"";position:absolute;left:-4px;bottom:-3px;border-style:solid;border-width:6px 4px 0 4px;border-color:#B9CCC6 transparent transparent transparent;}
+  .p-edge .ei{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
+  .p-cta{display:flex;gap:8px;padding:8px 12px 12px;background:linear-gradient(180deg,rgba(246,248,247,0),#F6F8F7 40%);}
+  .p-cta .btn1{flex:1;background:linear-gradient(135deg,var(--teal),#1FA58E);color:#fff;border:none;border-radius:12px;padding:11px 0;font-size:13px;font-weight:700;cursor:pointer;}
+  .p-cta .btn2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:0 14px;font-size:12.5px;color:var(--ink-2);font-weight:600;cursor:pointer;}
+  .phone-note{font-size:12px;color:var(--ink-3);margin-top:10px;text-align:center;}
+  .ui-points{display:flex;flex-direction:column;gap:10px;}
+  .ui-point{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;box-shadow:var(--shadow);}
+  .ui-point b{font-size:13.5px;display:flex;align-items:center;gap:8px;}
+  .ui-point p{font-size:12.5px;color:var(--ink-2);margin-top:4px;}
+
+  /* ===== 时间轴 ===== */
+  .timeline{position:relative;margin-left:8px;padding-left:26px;}
+  .timeline::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:linear-gradient(180deg,var(--teal),#B9CCC6);}
+  .tl-item{position:relative;padding-bottom:22px;}
+  .tl-item:last-child{padding-bottom:0;}
+  .tl-item::before{content:"";position:absolute;left:-26px;top:7px;width:14px;height:14px;border-radius:50%;background:var(--card);border:3px solid var(--teal);}
+  .tl-item .tl-tt{font-size:11.5px;font-weight:700;color:var(--teal-deep);letter-spacing:.5px;}
+  .tl-item h3{font-size:15px;font-weight:700;margin:3px 0 5px;}
+  .tl-item p{font-size:13px;color:var(--ink-2);max-width:70ch;}
+  .tl-item .tls{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
+  .tls span{font-size:11.5px;color:var(--ink-2);background:#F0F6F4;border-radius:999px;padding:2px 10px;}
+
+  /* ===== 决策点 ===== */
+  .dec{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .dec .card{padding:18px;}
+  .dec .q{font-size:14px;font-weight:700;display:flex;gap:9px;align-items:baseline;}
+  .dec .q .qn{font-family:var(--font-display);color:var(--orange);font-weight:900;}
+  .dec .opts{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .dec .opt{font-size:12.5px;color:var(--ink-2);background:#FBFDFC;border:1px solid var(--line);border-radius:10px;padding:7px 12px;}
+  .dec .opt b{color:var(--ink);font-weight:600;}
+  .dec .rec{margin-top:9px;font-size:12px;color:var(--teal-deep);background:var(--teal-soft);border-radius:9px;padding:6px 11px;}
+
+  footer.site{border-top:1px solid var(--line);margin-top:60px;padding:26px 0 40px;color:var(--ink-3);font-size:12.5px;}
+  footer.site .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+
+  /* ===== 响应式 ===== */
+  @media (max-width:860px){
+    .hero .wrap{grid-template-columns:1fr;padding-top:40px;}
+    .hero h1{font-size:34px;}
+    .mods{grid-template-columns:1fr 1fr;}
+    .flow-row{grid-template-columns:1fr;gap:0;}
+    .fstep{padding:12px 14px;border-radius:12px;}
+    .f-arrow{display:flex;justify-content:center;color:var(--ink-3);padding:4px 0;}
+    .phone-wrap{grid-template-columns:1fr;}
+    .dec{grid-template-columns:1fr;}
+    .idea{grid-template-columns:1fr;}
+  }
+  @media (max-width:520px){
+    .mods{grid-template-columns:1fr;}
+    body{font-size:14px;}
+    .hero h1{font-size:29px;}
+    .sec-head h2{font-size:23px;}
+    .nav .ver{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap nav">
+    <div class="brand">
+      <span class="mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 12c3.5 0 4.5-7 8-7s4 7 7.5 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M3 12h18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M20.5 10l1.5 2-1.5 2" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      途迹 <span style="font-weight:500;color:var(--ink-3);font-size:13px;">TripCanvas</span>
+    </div>
+    <a class="lnk" href="#idea">设计思路</a>
+    <a class="lnk" href="#mods">功能模块</a>
+    <a class="lnk" href="#flow">主流程</a>
+    <a class="lnk" href="#ai">AI 引擎</a>
+    <a class="lnk" href="#arch">架构</a>
+    <a class="lnk" href="#data">数据模型</a>
+    <a class="lnk" href="#ui">界面示意</a>
+    <a class="lnk" href="#plan">里程碑</a>
+    <a class="lnk" href="#risk">风险</a>
+    <a class="lnk" href="#decide">待决策</a>
+    <span class="ver">方案 v0.1 · 待审核</span>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="kicker">系统方案 · 供审核</span>
+      <h1>把「机票」变成<br>一段<em>可编辑的旅程</em></h1>
+      <p class="lead">输入往返航班，AI 自动确定目的地与天数并推荐行程；行程以竖排轨迹图直观呈现，节点代表酒店、景点、饭店（含占用时间），箭头代表交通工具（含耗时）。你可以删节点、改时长、调顺序，再让 AI 重新规划。</p>
+      <div class="stats">
+        <div class="stat"><b>1 次</b><span>航班输入，自动定地点与天数</span></div>
+        <div class="stat"><b>3 类</b><span>节点：酒店 / 景点 / 饭店</span></div>
+        <div class="stat"><b>7 种</b><span>交通方式：飞机…步行</span></div>
+        <div class="stat"><b>秒级</b><span>二次 AI 重新规划</span></div>
+      </div>
+      <div class="tags">
+        <span class="tag">移动端竖屏优先</span>
+        <span class="tag">轨迹图交互编辑</span>
+        <span class="tag">约束求解 + LLM</span>
+        <span class="tag">Vue3 · FastAPI · MySQL</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hv-title"><b>行程轨迹图 · 示意</b><span>编辑中</span></div>
+      <div class="hv-flow">
+        <div class="node"><span class="ic" style="background:var(--violet-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 19V9l8-5 8 5v10" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 19v-6h6v6" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="nm">首都国际机场</span><span class="tm">去程 08:30</span></div>
+        <div class="edge"><span class="vl"></span><span class="ei"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M3 19l8-2 8 2-2-5 3-6-5-2.5L13.5 2l-2.5.5L10 8 5 7z" stroke="#7A8E93" stroke-width="1.6" stroke-linejoin="round"/></svg>飞机 · 3h05m</span></div>
+        <div class="node"><span class="ic" style="background:var(--violet-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M5 21V10l7-6 7 6v11" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="nm">云顶度假酒店</span><span class="tm">入住 14:00</span></div>
+        <div class="edge"><span class="vl"></span><span class="ei"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none;"><circle cx="12" cy="4.5" r="2" stroke="#7A8E93" stroke-width="1.6"/><path d="M10.5 8.5l1.5 4-1 3 3 2.5 2-4 2.5-5.5-3-1-1 3" stroke="#7A8E93" stroke-width="1.6" stroke-linejoin="round"/></svg>步行 · 12m</span></div>
+        <div class="node"><span class="ic" style="background:var(--teal-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="#0E7C7E" stroke-width="1.8"/></svg></span><span class="nm">洱海生态廊道</span><span class="tm">游览 3h</span></div>
+        <div class="edge"><span class="vl"></span><span class="ei"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M3 16v-4l2-4.5h14L21 12v4" stroke="#7A8E93" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7.5" cy="16.5" r="1.6" stroke="#7A8E93" stroke-width="1.6"/><circle cx="16.5" cy="16.5" r="1.6" stroke="#7A8E93" stroke-width="1.6"/></svg>打车 · 20m</span></div>
+        <div class="node"><span class="ic" style="background:var(--orange-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 21V11l3-7h10l3 7v10" stroke="#E2872E" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 16h16" stroke="#E2872E" stroke-width="1.8"/></svg></span><span class="nm">白族风味餐厅</span><span class="tm">用餐 1h30m</span></div>
+        <div class="edge"><span class="vl"></span><span class="ei"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none;"><rect x="4.5" y="4" width="15" height="13" rx="2.2" stroke="#7A8E93" stroke-width="1.6"/><path d="M4.5 11h15" stroke="#7A8E93" stroke-width="1.6"/><circle cx="9" cy="16.5" r="1.5" stroke="#7A8E93" stroke-width="1.6"/><circle cx="15" cy="16.5" r="1.5" stroke="#7A8E93" stroke-width="1.6"/></svg>公交 · 35m</span></div>
+        <div class="node"><span class="ic" style="background:var(--teal-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10.5l2 2 4-4" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="nm">崇圣寺三塔</span><span class="tm">游览 2h</span></div>
+        <div class="edge"><span class="vl"></span><span class="ei"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M3 16v-4l2-4.5h14L21 12v4" stroke="#7A8E93" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7.5" cy="16.5" r="1.6" stroke="#7A8E93" stroke-width="1.6"/><circle cx="16.5" cy="16.5" r="1.6" stroke="#7A8E93" stroke-width="1.6"/></svg>打车 · 15m</span></div>
+        <div class="node"><span class="ic" style="background:var(--violet-soft);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M5 21V10l7-6 7 6v11" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="nm">返回酒店 · 休息</span><span class="tm">21:00</span></div>
+      </div>
+      <div class="cap">示意图：竖排轨迹 = 时间流，节点可删、可调时长、可换序</div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="idea">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">01 · 设计思路</div>
+      <h2>一个核心：让 AI 与人在「轨迹图」上协作</h2>
+      <p>传统行程规划是「填表 + 看列表」，信息割裂、难以调整。本方案把行程抽象为一张可编辑的轨迹图：节点承载内容与时长，连线承载交通与耗时，人与 AI 都在同一张图上工作。</p>
+    </div>
+    <div class="idea">
+      <div class="card">
+        <div class="idx">STEP 1</div>
+        <h3>机票即输入</h3>
+        <p>录入往返航班（或出发/返回日期），系统自动确定目的地、旅行天数与有效游玩时间窗口，无需手动填表。</p>
+      </div>
+      <div class="card">
+        <div class="idx">STEP 2</div>
+        <h3>AI 生成行程</h3>
+        <p>以 POI 数据 + 开放时间 + 交通耗时做约束求解，LLM 润色主题与讲解，输出带时间轴的轨迹图。</p>
+      </div>
+      <div class="arrow">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        编辑闭环，可多轮
+      </div>
+      <div class="card">
+        <div class="idx">STEP 3</div>
+        <h3>轨迹图即画布</h3>
+        <p>删除节点（不去）、加减景点时长、拖动调整顺序、切换交通方式，全部所见即所得，冲突实时提示。</p>
+      </div>
+      <div class="card">
+        <div class="idx">STEP 4</div>
+        <h3>二次 AI 协作</h3>
+        <p>点击「AI 重新规划」，用户编辑固化为硬约束，AI 只优化其余部分，并以差异对比呈现改动。</p>
+      </div>
+      <div class="card">
+        <div class="idx">STEP 5</div>
+        <h3>行程中可调</h3>
+        <p>旅行中按实际情况跳点、加时、重排，后续行程实时重算；天气与营业状态变化自动提醒。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="mods">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">02 · 功能模块</div>
+      <h2>六个模块，覆盖「生成—编辑—再生成—执行」全链路</h2>
+    </div>
+    <div class="mods">
+      <div class="mod">
+        <div class="mhead"><span class="mic" style="background:var(--teal-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 19l8-2 8 2-2-5 3-6-5-2.5L13.5 2l-2.5.5L10 8 5 7z" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/></svg></span><h3>行程创建</h3></div>
+        <p>从航班到行程的入口，一次输入完成。</p>
+        <ul>
+          <li>往返航班 / 日期录入，自动算天数</li>
+          <li>偏好设置：兴趣、节奏、预算、人数</li>
+          <li>出行模板保存与复用</li>
+        </ul>
+      </div>
+      <div class="mod">
+        <div class="mhead"><span class="mic" style="background:var(--violet-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.2 4.8L19 8.6l-3.6 3.5.9 5L12 14.8 7.7 17l.9-5L4.9 8.6l4.8-.8z" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/></svg></span><h3>AI 推荐引擎</h3></div>
+        <p>多约束求解 + LLM 润色，产出可选的多套方案。</p>
+        <ul>
+          <li>POI 检索与评分排序</li>
+          <li>开放时间 / 交通 / 餐饮时段约束求解</li>
+          <li>每日主题化讲解与备选方案</li>
+        </ul>
+      </div>
+      <div class="mod">
+        <div class="mhead"><span class="mic" style="background:var(--orange-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 21V11l3-7h6l3 7v10" stroke="#E2872E" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 16h12" stroke="#E2872E" stroke-width="1.8"/><path d="M10 11v3M14 11v3" stroke="#E2872E" stroke-width="1.8"/></svg></span><h3>轨迹图编辑器</h3></div>
+        <p>全系统最核心的交互，一切编辑在此完成。</p>
+        <ul>
+          <li>节点删除 / 时长加减 / 顺序拖拽</li>
+          <li>交通方式切换与耗时更新</li>
+          <li>时间冲突实时检测、撤销 / 重做</li>
+        </ul>
+      </div>
+      <div class="mod">
+        <div class="mhead"><span class="mic" style="background:var(--violet-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="#6F5CC0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h3>二次 AI 规划</h3></div>
+        <p>把用户的编辑当约束，AI 重新排布全局。</p>
+        <ul>
+          <li>已编辑节点锁定为硬约束</li>
+          <li>新旧方案差异对比（增 / 删 / 改）</li>
+          <li>一键接受或继续微调</li>
+        </ul>
+      </div>
+      <div class="mod">
+        <div class="mhead"><span class="mic" style="background:var(--teal-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#0E7C7E" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="#0E7C7E" stroke-width="1.8" stroke-linecap="round"/></svg></span><h3>旅行中模式</h3></div>
+        <p>行程不是一次性产物，执行中持续可用。</p>
+        <ul>
+          <li>实时跳点 / 加时 / 重排，后续自动重算</li>
+          <li>天气、营业状态变化提醒</li>
+          <li>一键唤起地图导航</li>
+        </ul>
+      </div>
+      <div class="mod">
+        <div class="mhead"><span class="mic" style="background:var(--orange-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14H6z" stroke="#E2872E" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M9 12h7M9 16h5" stroke="#E2872E" stroke-width="1.8" stroke-linecap="round"/></svg></span><h3>行程管理</h3></div>
+        <p>多段旅程的收纳与分享。</p>
+        <ul>
+          <li>多行程列表、草稿与收藏</li>
+          <li>生成图片 / 日历导出 / 分享给同行人</li>
+          <li>节点点赞 / 踩，反哺推荐模型</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="flow">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">03 · 业务主流程</div>
+      <h2>一条主线，五个阶段</h2>
+      <p>核心闭环：航班输入 → AI 生成 → 轨迹图编辑 → 二次 AI 重排 → 行程中调整。阶段 3 与 4 可反复循环，直到行程满意。</p>
+    </div>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="fstep hot">
+          <span class="fn">阶段 1</span>
+          <div class="ft">输入航班</div>
+          <div class="fd">往返航班 / 日期 + 偏好，系统算出目的地与天数</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">阶段 2</span>
+          <div class="ft">AI 生成行程</div>
+          <div class="fd">POI 检索 + 约束求解 + LLM 润色，输出带时间轴的轨迹图</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep hot">
+          <span class="fn">阶段 3</span>
+          <div class="ft">轨迹图编辑</div>
+          <div class="fd">删节点、改时长、拖顺序、换交通；冲突实时提示</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">阶段 4</span>
+          <div class="ft">二次 AI 重排</div>
+          <div class="fd">编辑固化为约束，AI 优化其余；差异对比后接受</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">阶段 5</span>
+          <div class="ft">行程中执行</div>
+          <div class="fd">按实际情况实时调整，后续行程自动重算</div>
+        </div>
+      </div>
+      <div class="flow-foot">
+        <span class="dot" style="background:var(--teal);"></span> 高亮为系统核心交互环节（人机协作主战场）
+        <span style="margin-left:auto;">阶段 3 ↔ 4 构成循环，可多次迭代</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="ai">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">04 · AI 推荐引擎</div>
+      <h2>约束求解为主，LLM 为辅——输出稳定、可解释、可复算</h2>
+      <p>行程推荐不是自由发挥的「生成」，而是带约束的「求解」：任何一次推荐都要满足时间窗口、开放时间与交通可达等硬约束，LLM 负责主题化润色与讲解，确保结果既不冲突、又有「人味」。</p>
+    </div>
+    <div class="flow" style="margin-bottom:14px;">
+      <div class="flow-row" style="grid-template-columns:repeat(6,1fr);">
+        <div class="fstep">
+          <span class="fn">输入</span>
+          <div class="ft">航班 + 偏好</div>
+          <div class="fd">目的地、天数、时间窗口、预算节奏</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">解析</span>
+          <div class="ft">意图解析</div>
+          <div class="fd">航班 → 城市 / 时段；偏好 → 约束权重</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">检索</span>
+          <div class="ft">POI 检索</div>
+          <div class="fd">景点 / 酒店 / 餐厅，按偏好与区域召回</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">切分</span>
+          <div class="ft">时间窗口切分</div>
+          <div class="fd">每天拆为早 / 中 / 晚时段与交通余量</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep hot">
+          <span class="fn">求解</span>
+          <div class="ft">约束求解</div>
+          <div class="fd">贪心 + 局部搜索 / OR-Tools，输出多套可行方案</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">润色</span>
+          <div class="ft">LLM 润色</div>
+          <div class="fd">每日主题、节点讲解、餐饮推荐理由</div>
+        </div>
+        <div class="f-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M14 6l6 6-6 6" stroke="#7A8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="fstep">
+          <span class="fn">输出</span>
+          <div class="ft">轨迹图数据</div>
+          <div class="fd">节点 / 边 / 时间轴 JSON，前端直接渲染</div>
+        </div>
+      </div>
+      <div class="flow-foot">
+        <span class="dot" style="background:var(--violet);"></span> 二次推荐：用户编辑 → 锁定为硬约束 → 仅对未锁定部分重新求解 → 输出差异对比
+      </div>
+    </div>
+    <div class="card" style="padding:18px;">
+      <table class="tb">
+        <thead>
+          <tr><th style="width:130px;">约束类型</th><th>内容</th><th style="width:220px;">示例</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="pill h">硬约束</span> 违反则不可行</td><td><b>开放时间</b>：景点营业窗口内安排；<b>交通可达</b>：航班起降时刻能衔接；<b>餐饮时段</b>：午 / 晚餐落在合理区间；<b>住宿</b>：每晚一家酒店；<b>接送机</b>：首末日预留机场交通</td><td>某景点 08:00–18:00，闭馆前 1h 到达</td></tr>
+          <tr><td><span class="pill s">软约束</span> 加权评分</td><td><b>偏好匹配</b>：兴趣类型、节奏（宽松 / 紧凑）、预算；<b>路线效率</b>：避免同区域来回折返；<b>质量</b>：评分与口碑；<b>均衡</b>：每天体量大致相当</td><td>美食偏好 → 午餐优先高分特色餐厅</td></tr>
+          <tr><td><span class="pill v">用户锁定</span> 二次推荐</td><td>编辑后节点保留、时长不变、顺序固定、交通方式固定，其余自由优化</td><td>「洱海待 3h」锁定后其余照常重排</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="arch">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">05 · 系统架构</div>
+      <h2>前后端分离 + 异步任务，沿用已验证的成熟技术栈</h2>
+      <p>技术选型借鉴已有项目经验（Vue3 + FastAPI + MySQL），保证开发效率与运维可控；AI 推理、重排等耗时任务走 Celery 异步队列，接口秒级响应。</p>
+    </div>
+    <div class="layers">
+      <div class="layer">
+        <div class="lt"><span class="badge" style="background:var(--teal);">P1</span><b>前端层 · Vue3 SPA</b><span>移动端优先，桌面自适应</span></div>
+        <div class="lmods">
+          <div class="lm"><b>行程创建</b><span>航班录入 / 偏好 / 天数计算</span></div>
+          <div class="lm"><b>轨迹图画布</b><span>SVG 自研组件 + 拖拽 / 触控</span></div>
+          <div class="lm"><b>差异对比</b><span>二次推荐新旧方案 Diff</span></div>
+          <div class="lm"><b>行程管理</b><span>列表 / 收藏 / 分享 / 导出</span></div>
+        </div>
+      </div>
+      <div class="lflow"><span>HTTPS / JSON API</span><span class="ln"></span></div>
+      <div class="layer">
+        <div class="lt"><span class="badge" style="background:#3D565C;">P2</span><b>后端层 · FastAPI</b><span>REST 接口 + 异步任务</span></div>
+        <div class="lmods">
+          <div class="lm"><b>行程服务</b><span>CRUD / 版本 / 快照</span></div>
+          <div class="lm"><b>推荐编排</b><span>解析 → 检索 → 求解 → 润色</span></div>
+          <div class="lm"><b>编辑服务</b><span>节点 / 边 / 冲突校验</span></div>
+          <div class="lm"><b>Celery 队列</b><span>AI 生成 / 重排 / 定时刷新</span></div>
+        </div>
+      </div>
+      <div class="lflow"><span>SQL / 缓存</span><span class="ln"></span></div>
+      <div class="layer">
+        <div class="lt"><span class="badge" style="background:var(--violet);">P3</span><b>数据层</b><span>业务数据 + 热数据 + POI 池</span></div>
+        <div class="lmods">
+          <div class="lm"><b>MySQL 8</b><span>行程 / 节点 / POI / 反馈</span></div>
+          <div class="lm"><b>Redis</b><span>任务队列 / POI 缓存 / 会话</span></div>
+        </div>
+      </div>
+      <div class="lflow"><span>外部服务（可插拔适配层）</span><span class="ln"></span></div>
+      <div class="layer">
+        <div class="lt"><span class="badge" style="background:var(--orange);">P4</span><b>外部服务层</b><span>均为可替换适配器</span></div>
+        <div class="lmods">
+          <div class="lm"><b>LLM API</b><span>行程润色 / 讲解 / 主题化</span></div>
+          <div class="lm"><b>POI 数据源</b><span>地图 POI / 开放数据聚合</span></div>
+          <div class="lm"><b>地图 / 导航</b><span>路线耗时、导航跳转</span></div>
+          <div class="lm"><b>天气</b><span>行程中提醒</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="data">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">06 · 数据模型</div>
+      <h2>八张表，支撑「行程—节点—边」的图结构</h2>
+      <p>行程的核心数据是图：trips 是画布，itinerary_nodes 是节点（顶点），itinerary_edges 是交通（边），其余为支撑与沉淀表。</p>
+    </div>
+    <div class="card" style="padding:6px 12px;">
+      <table class="tb">
+        <thead>
+          <tr><th style="width:190px;">表</th><th>关键字段（示意）</th><th style="width:240px;">职责</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>users</b></td><td>id, nickname, preferences(JSON)</td><td>用户与偏好画像</td></tr>
+          <tr><td><b>trips</b></td><td>id, user_id, 出发地/目的地, 去程/返程时间, 天数, 状态, ai_version</td><td>行程主表，一次旅程一张画布</td></tr>
+          <tr><td><b>trip_days</b></td><td>id, trip_id, day_no, 日期, 主题</td><td>按天分组，承载每日主题</td></tr>
+          <tr><td><b>itinerary_nodes</b></td><td>id, trip_id, day_id, 类型(hotel/attraction/restaurant/transfer), 名称, 开始时间, 占用时长, 顺序, 经纬度, 是否锁定</td><td>轨迹图顶点：节点与占用时间</td></tr>
+          <tr><td><b>itinerary_edges</b></td><td>id, trip_id, from_node, to_node, 方式, 耗时, 备注</td><td>轨迹图边：交通工具与耗时</td></tr>
+          <tr><td><b>pois</b></td><td>id, 城市, 类型, 名称, 开放时间, 评分, 价格档, 标签, 经纬度, 来源</td><td>POI 池：可多源聚合、人工标注</td></tr>
+          <tr><td><b>ai_recommendations</b></td><td>id, trip_id, 参数快照, 结果快照(JSON), 差异说明, 采纳状态</td><td>AI 推荐版本留痕，支持对比与复盘</td></tr>
+          <tr><td><b>user_feedback</b></td><td>id, node_id, action(赞/踩/跳过), 时间</td><td>反馈闭环，反哺 POI 评分与推荐权重</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="ui">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">07 · 界面设计</div>
+      <h2>移动端竖排轨迹图——「时间即上下，内容即卡片」</h2>
+      <p>竖屏是主战场：从上到下即时间流，节点是信息卡片，交通段是带耗时的连线。所有编辑动作一步可达，全程拇指可操作。</p>
+    </div>
+    <div class="phone-wrap">
+      <div>
+        <div class="phone">
+          <div class="screen">
+            <div class="p-status"><span>9:41</span><span>▮▮▮ ▮</span></div>
+            <div class="p-top">
+              <div class="t1">大理 · 4 天 3 晚 <span>轨迹图编辑中</span></div>
+              <div class="p-days">
+                <span class="p-day">D1 抵达</span><span class="p-day on">D2 洱海</span><span class="p-day">D3 古城</span><span class="p-day">D4 返程</span>
+              </div>
+            </div>
+            <div class="p-body">
+              <div class="p-node"><span class="ic" style="background:var(--violet-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 19V9l8-5 8 5v10" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 19v-6h6v6" stroke="#6F5CC0" stroke-width="1.8" stroke-linejoin="round"/></svg></span><div><div class="nm">洱海生态廊道</div><div class="sb">骑行 · 风景 · 免费</div></div><div class="ctr"><button type="button">−</button><span class="dur">3h</span><button type="button">＋</button></div></div>
+              <div class="p-edge"><span class="vl"></span><span class="ei"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M3 16v-4l2-4.5h14L21 12v4" stroke="#7A8E93" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7.5" cy="16.5" r="1.5" stroke="#7A8E93" stroke-width="1.7"/><circle cx="16.5" cy="16.5" r="1.5" stroke="#7A8E93" stroke-width="1.7"/></svg>打车 · 20m · 点击切换</span></div>
+              <div class="p-node"><span class="ic" style="background:var(--orange-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 21V11l3-7h10l3 7v10" stroke="#E2872E" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 16h16" stroke="#E2872E" stroke-width="1.8"/></svg></span><div><div class="nm">白族风味餐厅</div><div class="sb">午餐 · 人均 60</div></div><div class="ctr"><button type="button">−</button><span class="dur">1h30</span><button type="button">＋</button></div></div>
+              <div class="p-edge"><span class="vl"></span><span class="ei"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none;"><rect x="4.5" y="4" width="15" height="13" rx="2.2" stroke="#7A8E93" stroke-width="1.7"/><path d="M4.5 11h15" stroke="#7A8E93" stroke-width="1.7"/><circle cx="9" cy="16.5" r="1.4" stroke="#7A8E93" stroke-width="1.7"/><circle cx="15" cy="16.5" r="1.4" stroke="#7A8E93" stroke-width="1.7"/></svg>公交 · 35m</span></div>
+              <div class="p-node"><span class="ic" style="background:var(--teal-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10.5l2 2 4-4" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/></svg></span><div><div class="nm">崇圣寺三塔</div><div class="sb">古迹 · 门票 75</div></div><div class="ctr"><button type="button">−</button><span class="dur">2h</span><button type="button">＋</button></div></div>
+              <div class="p-edge"><span class="vl"></span><span class="ei"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none;"><circle cx="12" cy="4.5" r="2" stroke="#7A8E93" stroke-width="1.7"/><path d="M10.5 8.5l1.5 4-1 3 3 2.5 2-4 2.5-5.5-3-1-1 3" stroke="#7A8E93" stroke-width="1.7" stroke-linejoin="round"/></svg>步行 · 12m</span></div>
+              <div class="p-node"><span class="ic" style="background:var(--teal-soft);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10.5l2 2 4-4" stroke="#0E7C7E" stroke-width="1.8" stroke-linejoin="round"/></svg></span><div><div class="nm">喜洲古镇</div><div class="sb">村落 · 免费</div></div><div class="ctr"><button type="button">−</button><span class="dur">2h30</span><button type="button">＋</button></div></div>
+            </div>
+            <div class="p-cta">
+              <button class="btn1" type="button">AI 重新规划</button>
+              <button class="btn2" type="button">＋ 加地点</button>
+            </div>
+          </div>
+        </div>
+        <div class="phone-note">示意稿：竖排轨迹图 = 时间流；节点可加 / 减时长、拖拽换序、左滑删除</div>
+      </div>
+      <div class="ui-points">
+        <div class="ui-point"><b><span class="dot" style="background:var(--teal);"></span>竖排即时间线</b><p>从上到下对应一天的时间流，符合手机阅读习惯；每条交通段标出方式与耗时，机场 / 酒店首尾自然衔接。</p></div>
+        <div class="ui-point"><b><span class="dot" style="background:var(--orange);"></span>编辑一步可达</b><p>节点卡片右侧直接 + / − 时长；长按拖拽换序；左滑或按钮删除（确认后节点从图中移除）。</p></div>
+        <div class="ui-point"><b><span class="dot" style="background:var(--violet);"></span>交通可切换</b><p>点击交通段弹出方式选择（自驾 / 打车 / 公交 / 地铁 / 步行 / 自行车 / 轮船），系统按路线重算耗时。</p></div>
+        <div class="ui-point"><b><span class="dot" style="background:var(--red);"></span>冲突实时提示</b><p>超出行程窗口、景点闭馆、错过末班车等，节点标红并给出修改建议；支持撤销 / 重做，随时回到上一版。</p></div>
+        <div class="ui-point"><b><span class="dot" style="background:#3D565C;"></span>二次推荐有交代</b><p>AI 重排后用颜色标注差异：新增（蓝）、删除（红）、调整（橙），逐条展示理由，接受或继续微调。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="tech">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">08 · 技术选型</div>
+      <h2>成熟栈打底，关键交互自研</h2>
+    </div>
+    <div class="card" style="padding:6px 12px;margin-bottom:14px;">
+      <table class="tb">
+        <thead><tr><th style="width:150px;">层</th><th>选型</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td><b>前端框架</b></td><td>Vue 3 + TypeScript + Vite + Pinia</td><td>沿用已验证技术栈，移动端组件用 Vant</td></tr>
+          <tr><td><b>轨迹图画布</b></td><td>自研 SVG 组件 + 拖拽 / 触控手势</td><td>竖排时间流形态特殊，自研定制强、体积小、移动端可控</td></tr>
+          <tr><td><b>后端</b></td><td>FastAPI + SQLAlchemy 2.0 + Pydantic v2</td><td>异步友好、类型安全、文档自动生成</td></tr>
+          <tr><td><b>异步任务</b></td><td>Celery + Redis</td><td>AI 生成 / 重排耗时任务不阻塞接口</td></tr>
+          <tr><td><b>数据库</b></td><td>MySQL 8（业务）+ Redis（缓存 / 队列）</td><td>与既有系统一致，运维经验可复用</td></tr>
+          <tr><td><b>AI 编排</b></td><td>约束求解器（贪心 + 局部搜索，可切 OR-Tools）+ LLM API 适配层</td><td>求解保底、LLM 提味；厂商可插拔</td></tr>
+          <tr><td><b>部署</b></td><td>Docker Compose + Nginx 反代</td><td>参考 E:\news 部署经验，一键升级</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="padding:18px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px;">轨迹图渲染方案对比</div>
+      <table class="tb">
+        <thead><tr><th style="width:150px;">方案</th><th>优势</th><th>短板</th><th style="width:90px;">结论</th></tr></thead>
+        <tbody>
+          <tr><td><b>ECharts graph</b></td><td>开箱即用、展示能力强</td><td>节点拖拽 / 触控编辑弱，定制成本高</td><td><span class="pill r">不选</span></td></tr>
+          <tr><td><b>自研 SVG 画布</b></td><td>贴合竖排时间流、轻量、手势可控</td><td>需自研拖拽 / 排序 / 手势库</td><td><span class="pill h">推荐</span></td></tr>
+          <tr><td><b>LogicFlow / AntV X6</b></td><td>图编辑功能完整</td><td>依赖重、移动端样式改造量大</td><td><span class="pill s">备选</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="plan">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">09 · 开发里程碑</div>
+      <h2>五期迭代，约 10 周可上线</h2>
+      <p>先跑通「编辑闭环」，再接入 AI——编辑器是本系统的地基，优先做扎实。</p>
+    </div>
+    <div class="card" style="padding:26px 24px;">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-tt">M1 · 第 1–2 周</div>
+          <h3>基础框架与行程创建</h3>
+          <p>前后端脚手架、数据模型落地；航班输入、天数与时间窗口计算；行程列表与草稿。</p>
+          <div class="tls"><span>Vue3 + FastAPI 基建</span><span>表结构迁移</span><span>航班 → 天数计算</span></div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-tt">M2 · 第 3–4 周</div>
+          <h3>轨迹图编辑器 v1（地基）</h3>
+          <p>竖排轨迹图渲染、节点增删、时长加减、顺序拖拽、交通切换与耗时重算；冲突检测与撤销重做。</p>
+          <div class="tls"><span>SVG 画布</span><span>拖拽 / 触控</span><span>冲突检测</span></div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-tt">M3 · 第 5–6 周</div>
+          <h3>AI 推荐 v1</h3>
+          <p>POI 池接入与检索、时间窗口切分、约束求解器、LLM 润色；首次生成与多方案对比。</p>
+          <div class="tls"><span>POI 数据源接入</span><span>约束求解</span><span>LLM 适配层</span></div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-tt">M4 · 第 7–8 周</div>
+          <h3>二次推荐与旅行中模式</h3>
+          <p>编辑固化为约束的重排、差异对比；旅行中实时调整、天气提醒、导航跳转。</p>
+          <div class="tls"><span>二次求解</span><span>Diff 展示</span><span>行程中模式</span></div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-tt">M5 · 第 9–10 周</div>
+          <h3>打磨、测试与上线</h3>
+          <p>移动端真机适配、性能优化、安全加固、部署到服务器（Docker + Nginx），真实城市试点。</p>
+          <div class="tls"><span>真机适配</span><span>性能优化</span><span>部署上线</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="nfr">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">10 · 非功能需求</div>
+      <h2>性能、扩展与安全基线（方案目标值）</h2>
+    </div>
+    <div class="mods" style="grid-template-columns:repeat(2,1fr);">
+      <div class="mod"><div class="mhead"><span class="mic" style="background:var(--teal-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l4 4L20 5" stroke="#0E7C7E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h3>性能</h3></div><ul><li>首屏加载 &lt; 2s（H5 / PWA 缓存）</li><li>轨迹图 50+ 节点滚动流畅（虚拟列表）</li><li>AI 生成秒级返回，重排异步不阻塞</li></ul></div>
+      <div class="mod"><div class="mhead"><span class="mic" style="background:var(--violet-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#6F5CC0" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" stroke="#6F5CC0" stroke-width="1.8" stroke-linecap="round"/></svg></span><h3>扩展性</h3></div><ul><li>POI 数据源适配器化，可替换可叠加</li><li>LLM 厂商适配层，一键切换</li><li>行程 JSON 版本化，结构演进不破坏旧数据</li></ul></div>
+      <div class="mod"><div class="mhead"><span class="mic" style="background:var(--orange-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z" stroke="#E2872E" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="#E2872E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h3>安全</h3></div><ul><li>全站 HTTPS，接口鉴权与限流</li><li>输入校验（防注入），密钥入服务器 .env</li><li>数据库定时备份，行程可导出</li></ul></div>
+      <div class="mod"><div class="mhead"><span class="mic" style="background:var(--teal-soft);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="#0E7C7E" stroke-width="1.8"/><path d="M3 10h18" stroke="#0E7C7E" stroke-width="1.8"/><circle cx="7" cy="16" r="1.2" fill="#0E7C7E"/></svg></span><h3>体验</h3></div><ul><li>触控目标 ≥ 44px，支持 iOS / Android / 微信内置浏览器</li><li>轨迹图支持捏合缩放与长列表滚动</li><li>弱网下行程可离线浏览（PWA）</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="risk">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">11 · 风险与对策</div>
+      <h2>主要风险提前设防</h2>
+    </div>
+    <div class="card" style="padding:6px 12px;">
+      <table class="tb">
+        <thead><tr><th style="width:230px;">风险</th><th>影响</th><th>对策</th></tr></thead>
+        <tbody>
+          <tr><td><b>AI 输出不稳定</b></td><td>推荐不可用、格式错乱</td><td>约束求解为主、LLM 仅润色；输出 JSON Schema 强校验；失败回退规则模板并提示重试</td></tr>
+          <tr><td><b>POI 数据质量与更新滞后</b></td><td>推荐不准、开放时间过期</td><td>多源聚合比对；人工标注重点城市；用户反馈（赞 / 踩 / 纠正）闭环修正</td></tr>
+          <tr><td><b>移动端复杂交互误触</b></td><td>编辑体验差、误删</td><td>触控区 ≥ 44px；删除需确认；全量撤销 / 重做 + 版本快照可回退</td></tr>
+          <tr><td><b>LLM API 依赖</b></td><td>厂商故障 / 成本波动</td><td>适配层多厂商切换；本地规则兜底；用量配额与熔断</td></tr>
+          <tr><td><b>地图 / 导航 API 成本</b></td><td>预算超支</td><td>v1 不内置地图视图，导航走系统跳转；v2 按需评估</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="decide">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="no">12 · 待审核决策点</div>
+      <h2>六个关键取舍，请您拍板</h2>
+      <p>以下为影响范围最大的决策，均已给出倾向建议；其余细节待方案通过后细化。</p>
+    </div>
+    <div class="dec">
+      <div class="card">
+        <div class="q"><span class="qn">D1</span>用户体系怎么做？</div>
+        <div class="opts"><div class="opt"><b>A · 先免登录</b>：单机可用，行程存本地 + 云端匿名；<b>B · 手机号登录</b>：从第一天就建账号体系</div></div>
+        <div class="rec">建议 A：先跑通核心体验，二期再上登录与多端同步</div>
+      </div>
+      <div class="card">
+        <div class="q"><span class="qn">D2</span>航班数据来源？</div>
+        <div class="opts"><div class="opt"><b>A · 手动录入</b>：输入航班号 / 起降时间；<b>B · 接航班 API</b>：自动查询真实班次（成本高）</div></div>
+        <div class="rec">建议 A：手动录入为主，航班 API 列为可选二期</div>
+      </div>
+      <div class="card">
+        <div class="q"><span class="qn">D3</span>POI 数据源选哪家？</div>
+        <div class="opts"><div class="opt"><b>高德 / 百度 / 腾讯地图</b> POI 接口，均需申请 key 与配额；开放数据（如 OSM）质量不稳定</div></div>
+        <div class="rec">建议高德 POI：景点覆盖与开放时间字段较好，文档全</div>
+      </div>
+      <div class="card">
+        <div class="q"><span class="qn">D4</span>AI 引擎用什么？</div>
+        <div class="opts"><div class="opt"><b>约束求解器 + LLM 润色</b>；LLM 厂商可选豆包 / 通义 / DeepSeek 等</div></div>
+        <div class="rec">建议：自研求解器保底 + LLM 适配层，首期接任一国内 API</div>
+      </div>
+      <div class="card">
+        <div class="q"><span class="qn">D5</span>平台形态？</div>
+        <div class="opts"><div class="opt"><b>A · H5 + PWA</b>：一套代码，免审核，可加桌面图标；<b>B · 小程序</b>：微信生态但受平台约束</div></div>
+        <div class="rec">建议 A：H5 + PWA 先行，体验与分发成本最均衡</div>
+      </div>
+      <div class="card">
+        <div class="q"><span class="qn">D6</span>是否做地图视图？</div>
+        <div class="opts"><div class="opt"><b>A · v1 不做地图</b>：轨迹图已表达时间与顺序；<b>B · 地图联动</b>：点位落图，但涉及 API 成本与开发量</div></div>
+        <div class="rec">建议 A：v1 专注轨迹图，v2 再评估地图联动</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <span>途迹 TripCanvas · 旅游行程智能规划系统方案 v0.1</span>
+    <span>依据《旅游行程管理系统需求草稿》编制 · 移动端优先 · 2026-09</span>
+  </div>
+</footer>
+
+
+
+
+</body>
+</html>
