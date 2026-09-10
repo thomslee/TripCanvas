@@ -66,7 +66,7 @@ const statusText: Record<string, string> = {
 
     <template v-else-if="store.trips.length">
       <div class="user-bar">
-        <div class="user-info">
+        <div class="user-info" @click="router.push('/profile')">
           <div class="user-avatar">{{ (userStore.user?.nickname || userStore.user?.username || '?').charAt(0).toUpperCase() }}</div>
           <div class="user-meta">
             <span class="user-name">{{ userStore.user?.nickname || userStore.user?.username }}</span>
@@ -113,7 +113,7 @@ const statusText: Record<string, string> = {
 
     <template v-else>
       <div class="user-bar">
-        <div class="user-info">
+        <div class="user-info" @click="router.push('/profile')">
           <div class="user-avatar">{{ (userStore.user?.nickname || userStore.user?.username || '?').charAt(0).toUpperCase() }}</div>
           <div class="user-meta">
             <span class="user-name">{{ userStore.user?.nickname || userStore.user?.username }}</span>
@@ -163,6 +163,7 @@ const statusText: Record<string, string> = {
   display: flex;
   align-items: center;
   gap: 10px;
+  cursor: pointer;
 }
 .user-avatar {
   width: 38px;

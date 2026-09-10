@@ -53,6 +53,22 @@ def login(data: LoginIn, db: Session = Depends(get_db)):
     return AuthOut(token=token, user=UserOut.model_validate(user))
 
 
+class ChangePasswordIn(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=4, max_length=128)
+
+
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.put("/me/password", status_code=200)
+def change_password(data: ChangePasswordIn, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    """修改当前用户密码。"""
+    if not auth_service.verify_password(data.old_password, current_user.password_hash or ""):
+        raise HTTPException(status_code=400, detail="原密码错误")
+    current_user.password_hash = auth_service.hash_password(data.new_password)
+    db.commit()
+    return {"ok": True, "message": "密码已更新"}

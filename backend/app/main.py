@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import trips_router, itinerary_router, poi_router, weather_router, settings_router, auth_router
+from .routers import trips_router, itinerary_router, poi_router, weather_router, settings_router, auth_router, admin_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -26,6 +26,7 @@ app.include_router(poi_router)
 app.include_router(weather_router)
 app.include_router(settings_router)
 app.include_router(auth_router)
+app.include_router(admin_router)
 
 
 @app.get("/api/health", tags=["meta"])

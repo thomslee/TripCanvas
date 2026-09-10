@@ -265,6 +265,22 @@ export const authApi = {
   register: (username: string, password: string, nickname?: string) =>
     http.post<AuthResult>('/auth/register', { username, password, nickname }),
   me: () => http.get<AuthUser>('/auth/me'),
+  changePassword: (old_password: string, new_password: string) =>
+    http.put('/auth/me/password', { old_password, new_password }),
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  nickname: string | null
+  role: 'admin' | 'user'
+  created_at: string | null
+}
+
+export const adminApi = {
+  listUsers: () => http.get<AdminUser[]>('/admin/users'),
+  updateRole: (userId: number, role: string) =>
+    http.patch<AdminUser>(`/admin/users/${userId}`, { role }),
 }
 
 export default http
