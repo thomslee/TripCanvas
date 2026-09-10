@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..schemas.itinerary import PoiSummary
-from ..services import poi_service
+from ..services import poi_service, amap_service
 
 router = APIRouter(prefix="/api/pois", tags=["poi"])
 
@@ -17,6 +17,16 @@ def search_pois(city: str | None = Query(None, description="城市，如：大�
                 db: Session = Depends(get_db)):
     """检索真实地点池（内置示例数据；接入高德后自动合并外部来源）。"""
     pois = poi_service.search_pois(db, city=city, keyword=q, poi_type=type, limit=limit)
+    return [PoiSummary.model_validate(p) for p in pois]
+
+
+@router.get("/search-amap", response_model=list[PoiSummary])
+def search_amap(city: str | None = Query(None, description="城市，如：济南"),
+                q: str = Query(..., description="搜索关键字"),
+                limit: int = Query(15, ge=1, le=30),
+                db: Session = Depends(get_db)):
+    """从高德地图搜索真实 POI，自动入库（source='gaode'）。"""
+    pois = amap_service.search_pois(db, keyword=q, city=city, limit=limit)
     return [PoiSummary.model_validate(p) for p in pois]
 
 

@@ -199,6 +199,8 @@ export const timelineApi = {
 export const poiApi = {
   search: (params: { city?: string; q?: string; type?: NodeType; limit?: number }) =>
     http.get<Poi[]>('/pois/search', { params }),
+  searchAmap: (params: { city?: string; q: string; limit?: number }) =>
+    http.get<Poi[]>('/pois/search-amap', { params }),
   seed: () => http.post('/pois/seed'),
   listTrip: (tripId: number) => http.get<TripPoi[]>(`/trips/${tripId}/pois`),
   deleteTrip: (tripId: number, poiId: number) => http.delete(`/trips/${tripId}/pois/${poiId}`),

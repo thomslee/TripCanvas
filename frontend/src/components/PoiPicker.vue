@@ -42,13 +42,39 @@ watch(
 async function doSearch() {
   loading.value = true
   try {
-    const { data } = await poiApi.search({
-      city: props.city ?? undefined,
-      q: keyword.value.trim() || undefined,
-      type: typeFilter.value ?? undefined,
-      limit: 30,
-    })
-    results.value = data
+    const kw = keyword.value.trim()
+    // 同时搜索内置库和高德（有关键词时才搜高德，避免无关键词返回过多）
+    const tasks: Promise<any>[] = [
+      poiApi.search({
+        city: props.city ?? undefined,
+        q: kw || undefined,
+        type: typeFilter.value ?? undefined,
+        limit: 20,
+      }),
+    ]
+    if (kw) {
+      tasks.push(poiApi.searchAmap({
+        city: props.city ?? undefined,
+        q: kw,
+        limit: 15,
+      }).catch(() => ({ data: [] })))
+    }
+    const [localRes, amapRes] = await Promise.all(tasks)
+    const local = localRes.data || []
+    const amap = (amapRes as any)?.data || []
+    // 合并去重（按 id）
+    const seen = new Set<number>()
+    const merged: Poi[] = []
+    for (const p of [...amap, ...local]) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id)
+        merged.push(p)
+      }
+    }
+    // 按类型过滤
+    results.value = typeFilter.value
+      ? merged.filter((p) => p.poi_type === typeFilter.value)
+      : merged
     searched.value = true
   } catch (e) {
     results.value = []
@@ -93,13 +119,15 @@ function close() {
       <div class="pk-list">
         <van-loading v-if="loading" style="padding: 30px 0" vertical>搜索中…</van-loading>
         <div v-else-if="searched && !results.length" class="pk-empty">
-          未找到匹配地点。内置示例库仅覆盖大理/北京/成都，接入高德后将支持全域搜索。
+          未找到匹配地点，试试换个关键词或城市。
         </div>
         <div v-for="p in results" :key="p.id" class="pk-item" @click="pick(p)">
           <div class="pk-main">
             <div class="pk-name">
               {{ p.name }}
-              <span v-if="p.source === 'seed'" class="pk-src">示例</span>
+              <span v-if="p.source === 'gaode'" class="pk-src gaode">高德</span>
+              <span v-else-if="p.source === 'seed'" class="pk-src">示例</span>
+              <span v-else-if="p.source === 'ai'" class="pk-src ai">AI</span>
             </div>
             <div class="pk-meta">
               <span v-if="p.open_hours">营业 {{ p.open_hours }}</span>
@@ -195,6 +223,14 @@ function close() {
   border: 1px solid var(--tc-orange);
   border-radius: 4px;
   padding: 0 4px;
+}
+.pk-src.gaode {
+  color: #1677ff;
+  border-color: #1677ff;
+}
+.pk-src.ai {
+  color: #722ed1;
+  border-color: #722ed1;
 }
 .pk-meta {
   margin-top: 3px;

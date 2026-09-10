@@ -28,9 +28,13 @@ function fmtDur(m: number): string {
   return `${mm}m`
 }
 
-/** 真实 POI：有关联且非 AI 自动生成（有营业时间/票价等详细信息） */
+/** 真实 POI：有关联且来源为内置/高德（有详细信息） */
 function isRealPoi(node: ItineraryNode): boolean {
-  return !!(node.poi && node.poi.source && node.poi.source !== 'ai')
+  return !!(node.poi && (node.poi.source === 'gaode' || node.poi.source === 'seed'))
+}
+/** AI 推荐 POI：AI 生成的自定义 POI（有名称但无详细信息） */
+function isAiPoi(node: ItineraryNode): boolean {
+  return !!(node.poi && node.poi.source === 'ai')
 }
 
 function fmtOverflow(m: number): string {
@@ -202,6 +206,7 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
               <span class="node-name">{{ node.name }}</span>
               <span class="node-type">{{ NODE_TYPE_NAMES[node.node_type] }}</span>
               <span v-if="isRealPoi(node)" class="poi-badge">真实</span>
+              <span v-else-if="isAiPoi(node)" class="ai-badge">AI推荐</span>
               <span v-else class="ph-badge">占位</span>
             </div>
             <div class="node-time">
@@ -211,7 +216,9 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
             <div v-if="isRealPoi(node)" class="poi-meta">
               <span v-if="node.poi!.open_hours">营业 {{ node.poi!.open_hours }}</span>
               <span v-if="node.poi!.ticket_price">{{ node.poi!.ticket_price }}</span>
+              <span v-if="node.poi!.rating">评分 {{ node.poi!.rating }}</span>
             </div>
+            <div v-else-if="isAiPoi(node)" class="ai-tip">点击可替换为高德真实地点</div>
             <div v-else class="ph-tip">点击替换为真实地点</div>
             <div class="node-ops" @click.stop>
               <button class="op" title="减 30 分钟" @click="adjust(node, -30)">−30m</button>
@@ -438,6 +445,13 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
   border-radius: 6px;
   padding: 0 6px;
 }
+.ai-badge {
+  font-size: 10px;
+  color: #722ed1;
+  background: #f9f0ff;
+  border-radius: 6px;
+  padding: 0 6px;
+}
 .node-time {
   margin-top: 3px;
   font-size: 12px;
@@ -460,6 +474,11 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
   margin-top: 3px;
   font-size: 11px;
   color: var(--tc-orange);
+}
+.ai-tip {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #722ed1;
 }
 .node-ops {
   margin-top: 7px;
