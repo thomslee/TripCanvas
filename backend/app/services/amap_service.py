@@ -104,21 +104,33 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
                             Poi.poi_type == ptype)
                     .first())
         if existing:
-            # 更新缺失字段
-            if not existing.address and addr:
-                existing.address = addr
-            if not existing.rating and rating:
-                try:
-                    existing.rating = float(rating)
-                except (ValueError, TypeError):
-                    pass
-            if not existing.ticket_price and ticket_price:
-                existing.ticket_price = ticket_price
-            if not existing.lat and lat:
-                existing.lat = lat
-                existing.lng = lng
-            if not existing.source:
+            # 如果是 AI 来源的占位 POI，升级为高德真实 POI
+            if existing.source == "ai":
                 existing.source = "gaode"
+                existing.address = addr or existing.address
+                existing.lat = lat or existing.lat
+                existing.lng = lng or existing.lng
+                if rating:
+                    try:
+                        existing.rating = float(rating)
+                    except (ValueError, TypeError):
+                        pass
+                if ticket_price:
+                    existing.ticket_price = ticket_price
+            else:
+                # 已有真实 POI，仅补全缺失字段
+                if not existing.address and addr:
+                    existing.address = addr
+                if not existing.rating and rating:
+                    try:
+                        existing.rating = float(rating)
+                    except (ValueError, TypeError):
+                        pass
+                if not existing.ticket_price and ticket_price:
+                    existing.ticket_price = ticket_price
+                if not existing.lat and lat:
+                    existing.lat = lat
+                    existing.lng = lng
             results.append(existing)
             continue
 
@@ -181,8 +193,9 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
             keyword = name if any(k in name for k in ["酒店", "宾馆", "客栈", "餐厅", "饭店", "景区", "公园", "古镇", "古城"]) else name + type_suffix
             try:
                 results = search_pois(db, keyword=keyword, city=city, limit=10)
-                # 过滤同类型
-                matched = next((p for p in results if p.poi_type == node.node_type), None)
+                # 只匹配真实来源 POI（gaode/seed），跳过 ai 来源避免匹配到自己
+                real_results = [p for p in results if p.source in ("gaode", "seed")]
+                matched = next((p for p in real_results if p.poi_type == node.node_type), None)
             except Exception:
                 db.rollback()
                 matched = None

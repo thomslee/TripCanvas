@@ -7,6 +7,7 @@ const props = defineProps<{
   city?: string | null
   type?: NodeType | null
   title?: string
+  initialKeyword?: string
 }>()
 const emit = defineEmits<{
   (e: 'update:show', v: boolean): void
@@ -32,7 +33,7 @@ watch(
   (v) => {
     if (v) {
       typeFilter.value = props.type ?? null
-      keyword.value = ''
+      keyword.value = props.initialKeyword ?? ''
       results.value = []
       searched.value = false
       doSearch()
