@@ -63,6 +63,13 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
         if not name:
             continue
 
+        # address 可能是列表或字符串，统一转为字符串
+        addr = item.get("address")
+        if isinstance(addr, list):
+            addr = addr[0] if addr else ""
+        elif not isinstance(addr, str):
+            addr = str(addr) if addr else None
+
         # 经纬度
         lat = lng = None
         loc = item.get("location", "")
@@ -97,8 +104,8 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
                     .first())
         if existing:
             # 更新缺失字段
-            if not existing.address and item.get("address"):
-                existing.address = item["address"]
+            if not existing.address and addr:
+                existing.address = addr
             if not existing.rating and rating:
                 try:
                     existing.rating = float(rating)
@@ -118,7 +125,7 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
             city=city or "",
             poi_type=ptype,
             name=name,
-            address=item.get("address"),
+            address=addr or None,
             open_hours=None,  # 高德开放平台基础版不返回营业时间
             ticket_price=ticket_price,
             rating=float(rating) if rating else None,
@@ -176,6 +183,7 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
                 # 过滤同类型
                 matched = next((p for p in results if p.poi_type == node.node_type), None)
             except Exception:
+                db.rollback()
                 matched = None
             name_cache[name] = matched
             time.sleep(0.1)  # 避免高德频控

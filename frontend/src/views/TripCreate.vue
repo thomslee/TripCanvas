@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { tripsApi, type TripCreateResult, type DayWindow } from '../api'
@@ -29,6 +29,25 @@ const transportOptions = [
   { name: '客轮', value: 'ship' },
   { name: '自驾', value: 'car' },
 ]
+
+/* 每次进入创建页重置表单，避免保留上次填写内容 */
+function resetForm() {
+  form.departCity = ''
+  form.destCities = [{ city: '', days: 1 }]
+  form.departDate = []
+  form.returnDate = []
+  form.arriveTime = []
+  form.departTime = []
+  form.departTransport = 'plane'
+  form.arriveStation = ''
+  form.returnTransport = 'plane'
+  form.departStation = ''
+  form.requirements = ''
+  form.pace = 'relaxed'
+  form.budget = 'mid'
+  form.travelers = 1
+}
+onMounted(resetForm)
 
 const showDepartDate = ref(false)
 const showReturnDate = ref(false)
