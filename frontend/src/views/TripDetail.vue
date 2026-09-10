@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import html2canvas from 'html2canvas'
-import { tripsApi, timelineApi, poiApi, weatherApi, replanApi,
+import { tripsApi, timelineApi, poiApi, weatherApi, replanApi, aiPlanApi,
   type Timeline, type TripPoi, type Weather } from '../api'
 import TimelineDay from '../components/TimelineDay.vue'
 import TripPois from '../components/TripPois.vue'
@@ -77,6 +77,40 @@ async function onReplan() {
   }
 }
 
+/* ---------- AI 生成行程 ---------- */
+const aiPlanning = ref(false)
+
+async function onAIPlan() {
+  if (aiPlanning.value) return
+  aiPlanning.value = true
+  try {
+    const { data } = await aiPlanApi.run(tripId)
+    timeline.value = data.timeline
+    title.value = data.timeline.title ?? ''
+    await loadWeatherAll()
+    await loadPois()
+    showToast(`AI 已生成 ${data.total_nodes} 个节点`)
+  } catch (e) {
+    showToast((e as Error).message || 'AI 生成失败')
+  } finally {
+    aiPlanning.value = false
+  }
+}
+
+async function onSeed() {
+  try {
+    await timelineApi.seed(tripId)
+    await refresh()
+    showToast('已生成默认骨架')
+  } catch (e) {
+    showToast((e as Error).message)
+  }
+}
+
+const hasNodes = computed(() => {
+  return (timeline.value?.days ?? []).some((d) => d.nodes.length > 0)
+})
+
 const dateRange = computed(() => {
   const days = timeline.value?.days ?? []
   if (!days.length) return ''
@@ -87,14 +121,7 @@ const dateRange = computed(() => {
 async function load() {
   try {
     const tl = await timelineApi.get(tripId)
-    const hasContent = tl.data.days.some((d) => d.nodes.length > 0)
-    if (!hasContent) {
-      await timelineApi.seed(tripId)
-      const tl2 = await timelineApi.get(tripId)
-      timeline.value = tl2.data
-    } else {
-      timeline.value = tl.data
-    }
+    timeline.value = tl.data
     title.value = tl.data.title ?? ''
     await loadWeatherAll()
     await loadPois()
@@ -250,7 +277,29 @@ watch(
     <van-loading v-if="loading" style="padding: 60px 0" color="#0e7c7e" vertical>加载中…</van-loading>
 
     <template v-else-if="timeline">
-      <div ref="exportRef">
+      <!-- 空态：还没有行程节点 -->
+      <div v-if="!hasNodes" class="empty-plan">
+        <div class="empty-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none">
+            <path d="M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11Z" stroke="#0e7c7e" stroke-width="1.5" stroke-linejoin="round"/>
+            <circle cx="12" cy="10" r="2.5" stroke="#0e7c7e" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div class="empty-title">开始规划这段行程</div>
+        <div class="empty-desc">AI 将根据目的地、航班时间和偏好，智能生成每日景点、餐厅和酒店安排</div>
+        <div class="empty-actions">
+          <button class="ai-generate-btn" :disabled="aiPlanning" @click="onAIPlan">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M20 2v10h-10"/>
+            </svg>
+            {{ aiPlanning ? 'AI 正在生成…' : 'AI 生成行程' }}
+          </button>
+          <button class="seed-btn" @click="onSeed">生成默认骨架</button>
+        </div>
+        <div v-if="aiPlanning" class="ai-loading-hint">大模型正在规划中，通常需要 5-15 秒…</div>
+      </div>
+
+      <div v-else ref="exportRef">
       <div class="tc-card trip-head">
         <div class="head-row1">
           <span class="head-title">{{ title }}</span>
@@ -341,6 +390,69 @@ watch(
 </template>
 
 <style scoped>
+.empty-plan {
+  text-align: center;
+  padding: 50px 20px 40px;
+}
+.empty-icon {
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+.empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2a27;
+  margin-bottom: 8px;
+}
+.empty-desc {
+  font-size: 13px;
+  color: #7a8a87;
+  line-height: 1.6;
+  max-width: 280px;
+  margin: 0 auto 24px;
+}
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 280px;
+  margin: 0 auto;
+}
+.ai-generate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0e7c7e, #12a5a8);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(14, 124, 126, 0.3);
+}
+.ai-generate-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.seed-btn {
+  padding: 11px;
+  border: 1px solid #d8e0de;
+  background: #fff;
+  color: #5a6a67;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.ai-loading-hint {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #0e7c7e;
+  font-weight: 600;
+}
 .badge {
   font-size: 11px;
   padding: 2px 9px;

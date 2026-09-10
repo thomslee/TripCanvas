@@ -10,7 +10,7 @@ from ..schemas.itinerary import (
     NodeCreate, NodeOut, NodePatch, EdgeOut, EdgePatch,
     DayTimelineOut, TimelineOut, MovePayload, ReorderPayload, TripPoiOut, PoiSummary,
 )
-from ..services import seed_planner, replan_service
+from ..services import seed_planner, replan_service, ai_planner
 
 router = APIRouter(prefix="/api", tags=["itinerary"])
 
@@ -323,5 +323,20 @@ def replan_trip(trip_id: int, db: Session = Depends(get_db),
     """AI 二次推荐：按评分 / 类型分布 / 营业时间对现有节点智能重排（不增删节点）。"""
     trip = _get_trip(db, trip_id, current_user)
     result = replan_service.replan_trip(db, trip)
+    timeline = get_timeline(trip_id, db, current_user)
+    return {**result, "timeline": timeline}
+
+
+@router.post("/trips/{trip_id}/ai-plan", status_code=200)
+def ai_plan(trip_id: int, db: Session = Depends(get_db),
+            current_user: User = Depends(get_current_user)):
+    """AI 生成行程：调用大模型生成每日节点安排（覆盖已有节点）。"""
+    trip = _get_trip(db, trip_id, current_user)
+    try:
+        result = ai_planner.ai_plan_trip(db, trip)
+    except ai_planner.llm_service.LLMError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     timeline = get_timeline(trip_id, db, current_user)
     return {**result, "timeline": timeline}

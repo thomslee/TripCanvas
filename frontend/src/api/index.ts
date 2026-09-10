@@ -247,6 +247,19 @@ export const replanApi = {
   run: (tripId: number) => http.post<ReplanResult>(`/trips/${tripId}/replan`),
 }
 
+export interface AIPlanResult {
+  generated: boolean
+  total_nodes: number
+  poi_matched: number
+  days: number
+  source: string
+  timeline: Timeline
+}
+
+export const aiPlanApi = {
+  run: (tripId: number) => http.post<AIPlanResult>(`/trips/${tripId}/ai-plan`),
+}
+
 export interface AuthUser {
   id: number
   username: string
