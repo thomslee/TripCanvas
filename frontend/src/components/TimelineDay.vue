@@ -319,9 +319,9 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
         <div class="dt-rows">
           <div v-if="detailNode.poi.address" class="dt-row"><span class="dt-k">地址</span><span class="dt-v">{{ detailNode.poi.address }}</span></div>
           <div v-if="detailNode.poi.open_hours" class="dt-row"><span class="dt-k">营业时间</span><span class="dt-v">{{ detailNode.poi.open_hours }}</span></div>
+          <div v-if="detailNode.poi.phone" class="dt-row"><span class="dt-k">电话</span><span class="dt-v">{{ detailNode.poi.phone }}</span></div>
           <div v-if="detailNode.poi.ticket_price" class="dt-row"><span class="dt-k">票价</span><span class="dt-v">{{ detailNode.poi.ticket_price }}</span></div>
           <div v-if="detailNode.poi.rating" class="dt-row"><span class="dt-k">评分</span><span class="dt-v">{{ detailNode.poi.rating }} / 5</span></div>
-          <div class="dt-row"><span class="dt-k">行程时段</span><span class="dt-v">{{ detailNode.start_time }}–{{ detailNode.end_time }}（{{ fmtDur(detailNode.duration_minutes) }}）</span></div>
         </div>
         <van-button type="primary" round block @click="showDetail = false; openReplace(detailNode!)">替换为其他地点</van-button>
       </div>

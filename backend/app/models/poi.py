@@ -14,6 +14,7 @@ class Poi(Base):
     name = Column(String(128), nullable=False)
     address = Column(String(255), nullable=True)
     open_hours = Column(String(128), nullable=True)
+    phone = Column(String(64), nullable=True)  # 联系电话
     ticket_price = Column(String(64), nullable=True)  # 票价描述：免费 / ¥40 / 人均 ¥80
     rating = Column(DECIMAL(3, 1), nullable=True)
     price_level = Column(String(16), nullable=True)

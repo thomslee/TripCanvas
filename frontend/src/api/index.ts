@@ -107,8 +107,11 @@ export interface Poi {
   name: string
   address: string | null
   open_hours: string | null
+  phone: string | null
   ticket_price: string | null
   rating: number | null
+  lat: number | null
+  lng: number | null
   source: string | null
 }
 

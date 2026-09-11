@@ -13,8 +13,11 @@ class PoiSummary(BaseModel):
     name: str
     address: Optional[str] = None
     open_hours: Optional[str] = None
+    phone: Optional[str] = None
     ticket_price: Optional[str] = None
     rating: Optional[float] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     source: Optional[str] = None
 
 

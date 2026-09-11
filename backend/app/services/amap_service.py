@@ -86,6 +86,7 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
         biz_ext = item.get("biz_ext") or {}
         rating = biz_ext.get("rating")
         cost = biz_ext.get("cost")
+        phone = item.get("tel") or None
         ticket_price = None
         if cost:
             try:
@@ -117,6 +118,8 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
                         pass
                 if ticket_price:
                     existing.ticket_price = ticket_price
+                if phone:
+                    existing.phone = phone
             else:
                 # 已有真实 POI，仅补全缺失字段
                 if not existing.address and addr:
@@ -128,6 +131,8 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
                         pass
                 if not existing.ticket_price and ticket_price:
                     existing.ticket_price = ticket_price
+                if not existing.phone and phone:
+                    existing.phone = phone
                 if not existing.lat and lat:
                     existing.lat = lat
                     existing.lng = lng
@@ -140,6 +145,7 @@ def search_pois(db: Session, keyword: str, city: str | None = None,
             name=name,
             address=addr or None,
             open_hours=None,  # 高德开放平台基础版不返回营业时间
+            phone=phone,
             ticket_price=ticket_price,
             rating=float(rating) if rating else None,
             source="gaode",
