@@ -107,7 +107,7 @@ def get_weather(city: str) -> dict:
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
            f"&current=temperature_2m,apparent_temperature,weather_code"
            f"&daily=weather_code,temperature_2m_max,temperature_2m_min"
-           f"&timezone=Asia%2FShanghai&forecast_days=6")
+           f"&timezone=Asia%2FShanghai&forecast_days=4")
     data = _http_get(url)
     if not data or "current" not in data:
         out = {"available": False, "city": city, "message": "天气服务暂不可用"}
@@ -119,7 +119,7 @@ def get_weather(city: str) -> dict:
     code = cur.get("weather_code", 0)
     temp = round(cur.get("temperature_2m", 0))
     forecast = []
-    for i, d in enumerate(day.get("time", [])[:5]):
+    for i, d in enumerate(day.get("time", [])[:3]):
         dc = day["weather_code"][i] if day.get("weather_code") else 0
         forecast.append({
             "date": _fmt_date(d),
