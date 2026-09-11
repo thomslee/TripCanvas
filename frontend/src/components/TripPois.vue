@@ -21,6 +21,22 @@ const TYPE_COLORS: Record<string, string> = {
   hotel: '#5b7cfa', attraction: '#0e9f6e', restaurant: '#e2872e', station: '#8b5cf6',
 }
 
+/* ---------- 地点详情弹窗 ---------- */
+const showDetail = ref(false)
+const detailPoi = ref<Poi | null>(null)
+
+function openDetail(tp: TripPoi) {
+  detailPoi.value = tp.poi
+  showDetail.value = true
+}
+
+function insertFromDetail() {
+  showDetail.value = false
+  picked.value = null
+  pickedPoi.value = detailPoi.value
+  showPos.value = true
+}
+
 /* ---------- 插入指定位置 ---------- */
 const showPos = ref(false)
 const picked = ref<TripPoi | null>(null)
@@ -109,15 +125,15 @@ async function onDelete(tp: TripPoi) {
     <div v-for="tp in pois" :key="tp.poi.id" class="tpois-item">
       <div class="tp-icon" :style="{ color: TYPE_COLORS[tp.poi.poi_type], background: TYPE_COLORS[tp.poi.poi_type] + '1a' }"
         v-html="nodeIcons[tp.poi.poi_type] || ''"></div>
-      <div class="tp-main">
+      <div class="tp-main" @click="openDetail(tp)">
         <div class="tp-name-row">
           <span class="tp-name">{{ tp.poi.name }}</span>
           <span class="tp-type">{{ TYPE_NAMES[tp.poi.poi_type] }}</span>
           <span v-if="tp.count > 1" class="tp-cnt">×{{ tp.count }}</span>
         </div>
         <div class="tp-meta">
-          <span v-if="tp.poi.open_hours">营业 {{ tp.poi.open_hours }}</span>
-          <span v-if="tp.poi.ticket_price">{{ tp.poi.ticket_price }}</span>
+          <span v-if="tp.poi.address">{{ tp.poi.address }}</span>
+          <span v-if="tp.poi.phone">{{ tp.poi.phone }}</span>
         </div>
       </div>
       <div class="tp-ops">
@@ -125,6 +141,21 @@ async function onDelete(tp: TripPoi) {
         <button class="tp-btn del" @click="onDelete(tp)">移除</button>
       </div>
     </div>
+
+    <!-- 地点详情弹窗 -->
+    <van-popup v-model:show="showDetail" position="bottom" round>
+      <div class="sheet" v-if="detailPoi">
+        <div class="dt-name">{{ detailPoi.name }}</div>
+        <div class="dt-type">{{ TYPE_NAMES[detailPoi.poi_type] }}</div>
+        <div class="dt-rows">
+          <div v-if="detailPoi.address" class="dt-row"><span class="dt-k">地址</span><span class="dt-v">{{ detailPoi.address }}</span></div>
+          <div v-if="detailPoi.phone" class="dt-row"><span class="dt-k">电话</span><span class="dt-v">{{ detailPoi.phone }}</span></div>
+          <div v-if="detailPoi.ticket_price" class="dt-row"><span class="dt-k">票价</span><span class="dt-v">{{ detailPoi.ticket_price }}</span></div>
+          <div v-if="detailPoi.rating" class="dt-row"><span class="dt-k">评分</span><span class="dt-v">{{ detailPoi.rating }} / 5</span></div>
+        </div>
+        <van-button type="primary" round block @click="insertFromDetail">插入到行程</van-button>
+      </div>
+    </van-popup>
 
     <PositionPicker v-model:show="showPos" :days="days" :default-day-no="days[0]?.day_no ?? 1"
       :title="`插入「${picked ? picked.poi.name : pickedPoi?.name ?? ''}」到位置`" @select="onPosition" />
@@ -260,5 +291,43 @@ async function onDelete(tp: TripPoi) {
   color: #c94f4a;
   border: 1px solid #f0cfcd;
   background: #fff;
+}
+
+/* 详情弹窗 */
+.sheet {
+  padding: 20px 18px 24px;
+}
+.dt-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--tc-ink);
+  text-align: center;
+}
+.dt-type {
+  font-size: 12px;
+  color: var(--tc-ink-3);
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+.dt-rows {
+  border-top: 1px solid var(--tc-line);
+  margin-bottom: 16px;
+}
+.dt-row {
+  display: flex;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--tc-line);
+  font-size: 13.5px;
+}
+.dt-k {
+  width: 56px;
+  color: var(--tc-ink-3);
+  flex: none;
+}
+.dt-v {
+  flex: 1;
+  color: var(--tc-ink);
+  word-break: break-all;
 }
 </style>

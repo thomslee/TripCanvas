@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import html2canvas from 'html2canvas'
-import { tripsApi, timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi,
+import { tripsApi, timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi,
   type Timeline, type TripPoi, type Weather } from '../api'
 import TimelineDay from '../components/TimelineDay.vue'
 import TripPois from '../components/TripPois.vue'
@@ -131,6 +131,24 @@ async function onAutoReplace() {
     showToast((e as Error).message || '替换失败')
   } finally {
     autoReplacing.value = false
+  }
+}
+
+/* ---------- 交通规划：重新计算所有边的交通方式、距离、用时 ---------- */
+const recalcLoading = ref(false)
+
+async function onRecalcTransport() {
+  if (recalcLoading.value) return
+  recalcLoading.value = true
+  try {
+    const { data } = await recalcTransportApi.run(tripId)
+    timeline.value = data.timeline
+    title.value = data.timeline.title ?? ''
+    showToast(`已重新规划 ${data.updated} 段交通`)
+  } catch (e) {
+    showToast((e as Error).message || '交通规划失败')
+  } finally {
+    recalcLoading.value = false
   }
 }
 
@@ -377,6 +395,9 @@ watch(
           </button>
           <button class="replace-btn" :disabled="autoReplacing" @click="onAutoReplace">
             {{ autoReplacing ? '替换中…' : '一键替换真实地点' }}
+          </button>
+          <button class="replace-btn" :disabled="recalcLoading" @click="onRecalcTransport">
+            {{ recalcLoading ? '计算中…' : '交通规划' }}
           </button>
           <button class="del-btn" @click="onDelete">删除行程</button>
         </div>

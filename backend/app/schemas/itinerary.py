@@ -48,6 +48,7 @@ class NodeOut(BaseModel):
     id: int
     node_type: str
     name: str
+    city: Optional[str] = None
     duration_minutes: int
     sort_order: int
     note: Optional[str] = None

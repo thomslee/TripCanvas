@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { tripsApi, type TripCreateResult, type DayWindow } from '../api'
+import { tripsApi, citiesApi, poiApi, type TripCreateResult, type DayWindow } from '../api'
 
 const router = useRouter()
 
@@ -29,6 +29,65 @@ const transportOptions = [
   { name: '客轮', value: 'ship' },
   { name: '自驾', value: 'car' },
 ]
+
+/* ---------- 城市/站点搜索选择 ---------- */
+const pickerType = ref<'departCity' | 'destCity' | 'arriveStation' | 'departStation' | null>(null)
+const pickerIndex = ref(-1) // 多城市时的索引
+const pickerKeyword = ref('')
+const pickerResults = ref<any[]>([])
+const pickerLoading = ref(false)
+const showPicker = ref(false)
+
+let citySearchTimer: any = null
+async function onPickerSearch() {
+  const kw = pickerKeyword.value.trim()
+  pickerLoading.value = true
+  try {
+    if (pickerType.value === 'departCity' || pickerType.value === 'destCity') {
+      const { data } = await citiesApi.search(kw)
+      pickerResults.value = data
+    } else {
+      // 站点搜索：根据当前选中的城市搜索
+      let city = ''
+      if (pickerType.value === 'arriveStation') {
+        city = form.destCities[0]?.city || ''
+      } else if (pickerType.value === 'departStation') {
+        city = form.destCities[form.destCities.length - 1]?.city || ''
+      }
+      const { data } = await poiApi.searchAmap({ q: kw || '机场 高铁站', city, limit: 20 })
+      pickerResults.value = data.filter((p: any) => p.poi_type === 'station')
+    }
+  } finally {
+    pickerLoading.value = false
+  }
+}
+
+function openPicker(type: string, index = -1) {
+  pickerType.value = type as any
+  pickerIndex.value = index
+  pickerKeyword.value = ''
+  pickerResults.value = []
+  showPicker.value = true
+  setTimeout(() => onPickerSearch(), 100)
+}
+
+function onPickerInput() {
+  clearTimeout(citySearchTimer)
+  citySearchTimer = setTimeout(onPickerSearch, 300)
+}
+
+function selectPicker(item: any) {
+  if (pickerType.value === 'departCity') {
+    form.departCity = item.name
+  } else if (pickerType.value === 'destCity') {
+    form.destCities[pickerIndex.value].city = item.name
+  } else if (pickerType.value === 'arriveStation') {
+    form.arriveStation = item.name
+  } else if (pickerType.value === 'departStation') {
+    form.departStation = item.name
+  }
+  showPicker.value = false
+}
 
 /* 每次进入创建页重置表单，避免保留上次填写内容 */
 function resetForm() {
@@ -140,6 +199,10 @@ async function onSubmit() {
     showToast('请选择往返日期')
     return
   }
+  if (!form.arriveTime.length || !form.departTime.length) {
+    showToast('请填写到达时间和返程出发时间')
+    return
+  }
   if (jDate(form.returnDate) < jDate(form.departDate)) {
     showToast('返程日期不能早于去程日期')
     return
@@ -197,15 +260,16 @@ function fmtWin(w: DayWindow): string {
   <div class="tc-page">
     <van-nav-bar title="新建行程" left-arrow @click-left="router.back()" fixed placeholder />
 
-    <div class="sec-label">往返航班（航班信息决定地点与天数）</div>
+    <div class="sec-label">往返信息（到达与返程时间决定行程节奏）</div>
 
     <div class="tc-card">
-      <van-field v-model="form.departCity" label="出发城市" placeholder="如 北京" maxlength="64" />
+      <van-cell title="出发城市" :value="form.departCity || '请选择'" is-link
+        @click="openPicker('departCity')" />
 
       <div class="city-label">目的城市（支持多城市连游）</div>
       <div v-for="(c, i) in form.destCities" :key="i" class="city-row">
-        <van-field v-model="c.city" :placeholder="`如 ${['大理', '成都', '重庆', '丽江', '昆明'][i] ?? '城市'}`"
-          maxlength="64" class="city-field" />
+        <van-cell :value="c.city || `请选择第${i + 1}个城市`" is-link class="city-field"
+          @click="openPicker('destCity', i)" />
         <div class="city-days">
           <van-stepper v-model="c.days" min="1" :max="Math.max(totalDays, 1)" :disable-input="true" />
         </div>
@@ -220,33 +284,35 @@ function fmtWin(w: DayWindow): string {
         </span>
       </div>
 
-      <van-cell title="去程日期" is-link :value="form.departDate.length ? jDate(form.departDate) : ''"
-        placeholder="必填" @click="showDepartDate = true" />
-      <van-cell title="到达时间（可选）" is-link
-        :value="form.arriveTime.length ? jTime(form.arriveTime)! : ''" placeholder="选填"
-        @click="showArriveTime = true" />
       <div class="transport-row">
         <span class="transport-label">去程交通</span>
         <van-radio-group v-model="form.departTransport" direction="horizontal">
           <van-radio v-for="o in transportOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
         </van-radio-group>
       </div>
-      <van-field v-model="form.arriveStation" label="到达站点" placeholder="如 丽江三义机场 / 大理站（选填）"
-        maxlength="64" :disabled="form.departTransport === 'car'" />
+      <van-cell title="到达站点" :value="form.arriveStation || '请选择（选填）'" is-link
+        :disabled="form.departTransport === 'car'"
+        @click="form.departTransport !== 'car' && openPicker('arriveStation')" />
+      <van-cell title="到达日期" is-link :value="form.departDate.length ? jDate(form.departDate) : ''"
+        placeholder="必填" @click="showDepartDate = true" />
+      <van-cell title="到达时间" is-link
+        :value="form.arriveTime.length ? jTime(form.arriveTime)! : ''" placeholder="必填"
+        @click="showArriveTime = true" />
 
-      <van-cell title="返程日期" is-link :value="form.returnDate.length ? jDate(form.returnDate) : ''"
-        placeholder="必填" @click="showReturnDate = true" />
-      <van-cell title="返程出发时间（可选）" is-link
-        :value="form.departTime.length ? jTime(form.departTime)! : ''" placeholder="选填"
-        @click="showDepartTime = true" />
       <div class="transport-row">
         <span class="transport-label">返程交通</span>
         <van-radio-group v-model="form.returnTransport" direction="horizontal">
           <van-radio v-for="o in transportOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
         </van-radio-group>
       </div>
-      <van-field v-model="form.departStation" label="出发站点" placeholder="如 丽江三义机场 / 大理站（选填）"
-        maxlength="64" :disabled="form.returnTransport === 'car'" />
+      <van-cell title="出发站点" :value="form.departStation || '请选择（选填）'" is-link
+        :disabled="form.returnTransport === 'car'"
+        @click="form.returnTransport !== 'car' && openPicker('departStation')" />
+      <van-cell title="出发日期" is-link :value="form.returnDate.length ? jDate(form.returnDate) : ''"
+        placeholder="必填" @click="showReturnDate = true" />
+      <van-cell title="出发时间" is-link
+        :value="form.departTime.length ? jTime(form.departTime)! : ''" placeholder="必填"
+        @click="showDepartTime = true" />
     </div>
 
     <div class="sec-label">偏好（用于后续 AI 推荐）</div>
@@ -282,11 +348,11 @@ function fmtWin(w: DayWindow): string {
 
     <!-- 日期选择 -->
     <van-popup v-model:show="showDepartDate" position="bottom" round>
-      <van-date-picker v-model="form.departDate" title="选择去程日期" :min-date="new Date()"
+      <van-date-picker v-model="form.departDate" title="选择到达日期" :min-date="new Date()"
         @confirm="showDepartDate = false" @cancel="showDepartDate = false" />
     </van-popup>
     <van-popup v-model:show="showReturnDate" position="bottom" round>
-      <van-date-picker v-model="form.returnDate" title="选择返程日期" :min-date="new Date()"
+      <van-date-picker v-model="form.returnDate" title="选择出发日期" :min-date="new Date()"
         @confirm="showReturnDate = false" @cancel="showReturnDate = false" />
     </van-popup>
 
@@ -298,6 +364,27 @@ function fmtWin(w: DayWindow): string {
     <van-popup v-model:show="showDepartTime" position="bottom" round>
       <van-time-picker v-model="form.departTime" title="起飞时间" @confirm="showDepartTime = false"
         @cancel="showDepartTime = false" />
+    </van-popup>
+
+    <!-- 城市/站点搜索选择 -->
+    <van-popup v-model:show="showPicker" position="bottom" round :style="{ height: '70%' }">
+      <div class="picker-header">
+        <div class="picker-title">
+          {{ pickerType === 'departCity' ? '选择出发城市' : pickerType === 'destCity' ? '选择目的城市' : pickerType === 'arriveStation' ? '选择到达站点' : '选择出发站点' }}
+        </div>
+        <van-icon name="cross" @click="showPicker = false" />
+      </div>
+      <van-search v-model="pickerKeyword" placeholder="输入关键词搜索" @search="onPickerSearch"
+        @update:model-value="onPickerInput" :loading="pickerLoading" />
+      <div class="picker-list">
+        <div v-if="pickerResults.length === 0 && !pickerLoading" class="picker-empty">
+          未找到相关结果
+        </div>
+        <van-cell v-for="(item, i) in pickerResults" :key="i"
+          :title="item.name"
+          :label="item.province ? item.province + ' · ' + item.pinyin : item.address"
+          is-link @click="selectPicker(item)" />
+      </div>
     </van-popup>
 
     <!-- 生成结果 -->
@@ -458,5 +545,25 @@ function fmtWin(w: DayWindow): string {
   border-radius: 8px;
   padding: 6px 10px;
   margin-bottom: 6px;
+}
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 8px;
+}
+.picker-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.picker-list {
+  max-height: calc(70vh - 120px);
+  overflow-y: auto;
+}
+.picker-empty {
+  padding: 40px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
 }
 </style>

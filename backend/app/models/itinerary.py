@@ -11,6 +11,7 @@ class ItineraryNode(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
     day_id = Column(Integer, ForeignKey("trip_days.id", ondelete="CASCADE"), nullable=True)
+    city = Column(String(64), nullable=True)  # 节点所在城市（跨城天可能与day.city不同）
     poi_id = Column(Integer, ForeignKey("pois.id", ondelete="SET NULL"), nullable=True)  # 关联真实地点
     node_type = Column(String(16), nullable=False)  # hotel/attraction/restaurant/transfer
     name = Column(String(128), nullable=False)

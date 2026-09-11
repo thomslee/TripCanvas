@@ -10,7 +10,7 @@ from ..schemas.itinerary import (
     NodeCreate, NodeOut, NodePatch, EdgeOut, EdgePatch,
     DayTimelineOut, TimelineOut, MovePayload, ReorderPayload, TripPoiOut, PoiSummary,
 )
-from ..services import seed_planner, replan_service, ai_planner, amap_service
+from ..services import seed_planner, replan_service, ai_planner, amap_service, cities
 
 router = APIRouter(prefix="/api", tags=["itinerary"])
 
@@ -355,3 +355,32 @@ def auto_replace_pois(trip_id: int, db: Session = Depends(get_db),
     result = amap_service.auto_replace_pois(db, trip)
     timeline = get_timeline(trip_id, db, current_user)
     return {**result, "timeline": timeline}
+
+
+@router.post("/trips/{trip_id}/recalc-transport", status_code=200)
+def recalc_transport(trip_id: int, db: Session = Depends(get_db),
+                     current_user: User = Depends(get_current_user)):
+    """重新计算行程所有边的交通方式、距离和用时。"""
+    from ..services import distance_service
+    trip = _get_trip(db, trip_id, current_user)
+    edges = db.query(ItineraryEdge).filter(ItineraryEdge.trip_id == trip.id).all()
+    updated = 0
+    for edge in edges:
+        from_node = db.get(ItineraryNode, edge.from_node_id)
+        to_node = db.get(ItineraryNode, edge.to_node_id)
+        if not from_node or not to_node:
+            continue
+        t = distance_service.calc_transport(db, from_node, to_node)
+        edge.distance_km = t["distance_km"]
+        edge.transport = t["transport"]
+        edge.duration_minutes = t["duration_minutes"]
+        updated += 1
+    db.commit()
+    timeline = get_timeline(trip_id, db, current_user)
+    return {"updated": updated, "timeline": timeline}
+
+
+@router.get("/cities", status_code=200)
+def list_cities(q: str = "", limit: int = 50):
+    """搜索城市列表，支持中文和拼音。"""
+    return cities.search_cities(q, limit)

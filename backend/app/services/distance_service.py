@@ -16,10 +16,13 @@ TRANSPORT_SPEEDS = {
     "car": 30.0,
     "bus": 18.0,
     "metro": 35.0,
+    "train": 200.0,  # 高铁
+    "plane": 700.0,  # 飞机
 }
 
 # 距离阈值（km）
 WALK_MAX_DISTANCE = 1.0
+CROSS_CITY_TRAIN_MAX = 500.0  # 500km以内优先高铁
 
 # 直线距离转实际路线距离的系数
 ROUTE_FACTOR = 1.3
@@ -52,6 +55,7 @@ def calc_transport(db: Session, from_node: ItineraryNode, to_node: ItineraryNode
 
     返回 {distance_km, transport, duration_minutes}。
     无法获取坐标时返回默认值（打车30分钟，距离None）。
+    跨城（节点city不同）优先高铁/飞机，同城<1km步行，否则打车。
     """
     c1 = get_node_coords(db, from_node)
     c2 = get_node_coords(db, to_node)
@@ -62,7 +66,18 @@ def calc_transport(db: Session, from_node: ItineraryNode, to_node: ItineraryNode
     straight = haversine_km(c1[0], c1[1], c2[0], c2[1])
     distance = round(straight * ROUTE_FACTOR, 2)
 
-    if distance < WALK_MAX_DISTANCE:
+    # 判断是否跨城：节点城市不同，或距离超过50km
+    from_city = (from_node.city or "").strip()
+    to_city = (to_node.city or "").strip()
+    is_cross_city = (from_city and to_city and from_city != to_city) or distance > 50
+
+    if is_cross_city:
+        # 跨城：500km以内高铁，以上飞机
+        if distance <= CROSS_CITY_TRAIN_MAX:
+            transport = "train"
+        else:
+            transport = "plane"
+    elif distance < WALK_MAX_DISTANCE:
         transport = "walk"
     else:
         transport = "taxi"

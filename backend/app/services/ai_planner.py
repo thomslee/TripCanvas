@@ -65,15 +65,18 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
         '1. 每天安排 3-6 个节点，类型只能是 hotel（酒店）、attraction（景点）、restaurant（餐厅）、station（交通枢纽：高铁站/机场/火车站/码头）',
         '2. 到达日（第1天）第一个节点应为到达的交通站点（station），如"丽江三义机场"、"济南西站"，然后是酒店；离开日最后一个节点应为出发的交通站点（station）',
         '3. 每天第一个和最后一个节点通常是酒店（到达日和离开日根据交通时间调整）',
-        '4. 餐厅应安排在中午和晚上的用餐时间附近',
-        '5. duration_minutes 为建议停留分钟数，酒店和交通站点设为 0',
-        '6. 节点名称要具体真实，如"大理古城"、"洱海边"、"白族风味餐厅"、"丽江三义机场"',
-        '7. note 字段可选，写一句简短的游玩建议或推荐理由',
+        '4. 跨城天（当天从A城市到B城市）的节点顺序必须是：A城市出发站（station，如"太原南站"）→ B城市到达站（station，如"大同南站"）→ B城市酒店/景点，绝对不能把前一天的酒店作为跨城天的第一个节点',
+        '5. 交通枢纽节点名称必须是简洁的车站/机场名称，如"太原南站"、"大同南站"、"杭州萧山国际机场"，绝对不能是"高铁服务中心"、"高铁站宿舍楼"、"机场酒店"等附属设施名称',
+        '6. 餐厅应安排在中午和晚上的用餐时间附近',
+        '7. duration_minutes 为建议停留分钟数，酒店和交通站点设为 0',
+        '8. 节点名称要具体真实，如"大理古城"、"洱海边"、"白族风味餐厅"、"丽江三义机场"',
+        '9. note 字段可选，写一句简短的游玩建议或推荐理由',
+        '10. city 字段必填，填写该节点实际所在城市，跨城天（一天内涉及两个城市）要根据节点顺序正确标注，如上午在太原、下午到大同，则太原的节点city="太原"，大同的节点city="大同"',
         '',
         '【输出格式】严格输出 JSON，不要输出任何其他文字：',
         '{',
         '  "days": [',
-        '    {"day_no": 1, "nodes": [{"name": "...", "type": "hotel|attraction|restaurant|station", "duration_minutes": 120, "note": "..."}]},',
+        '    {"day_no": 1, "nodes": [{"name": "...", "type": "hotel|attraction|restaurant|station", "city": "城市名", "duration_minutes": 120, "note": "..."}]},',
         '    {"day_no": 2, "nodes": [...]},',
         '  ]',
         '}',
@@ -82,18 +85,27 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
 
 
 def _match_poi(db: Session, name: str, city: str, node_type: str) -> Poi | None:
-    """按名称模糊匹配内置 POI；未匹配则创建 AI 来源的自定义 POI。"""
+    """AI生成时只匹配ai来源的POI，不匹配高德POI，确保用户看到的都是AI推荐名称。
+    排除包含服务中心/宿舍楼等非主体设施词的POI。
+    未匹配则创建 AI 来源的自定义 POI。"""
     if not name or len(name) < 2:
         return None
-    pois = db.query(Poi).filter(Poi.poi_type == node_type).all()
-    # 优先匹配城市 + 名称包含
+    # 排除非主体设施词
+    exclude_kw = ["服务中心", "宿舍楼", "酒店", "宾馆", "餐厅", "饭店", "小吃", "超市", "商店", "停车场", "售票处", "便利店", "咖啡", "茶馆", "酒吧", "宿舍", "公寓", "住宅", "小区"]
+    # 只匹配ai来源的POI，避免匹配到高德来源的错误POI
+    pois = db.query(Poi).filter(Poi.poi_type == node_type, Poi.source == 'ai').all()
+    # 优先匹配城市 + 名称包含，且排除非主体设施
     for p in pois:
         if p.city and city and p.city != city:
+            continue
+        if node_type == 'station' and any(kw in p.name for kw in exclude_kw):
             continue
         if name in p.name or p.name in name:
             return p
     # 放宽：不限制城市
     for p in pois:
+        if node_type == 'station' and any(kw in p.name for kw in exclude_kw):
+            continue
         if name in p.name or p.name in name:
             return p
     # 未匹配：创建 AI 来源的自定义 POI
@@ -171,9 +183,11 @@ def ai_plan_trip(db: Session, trip: Trip) -> dict:
             if ntype == 'hotel':
                 duration = 0
             note = (nd.get('note') or '').strip() or None
+            # 节点城市：优先用AI返回的city，否则用当天城市
+            node_city = (nd.get('city') or '').strip() or city
 
-            # 匹配真实 POI
-            poi = _match_poi(db, name, city, ntype)
+            # 匹配真实 POI（用节点所在城市搜索）
+            poi = _match_poi(db, name, node_city, ntype)
             if poi:
                 name = poi.name
                 poi_matched += 1
@@ -181,6 +195,7 @@ def ai_plan_trip(db: Session, trip: Trip) -> dict:
             node = ItineraryNode(
                 trip_id=trip.id,
                 day_id=day.id,
+                city=node_city,
                 node_type=ntype,
                 name=name,
                 duration_minutes=duration,

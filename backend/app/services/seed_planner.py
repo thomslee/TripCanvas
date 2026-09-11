@@ -117,7 +117,8 @@ def seed_trip_timeline(db: Session, trip: Trip) -> bool:
                     poi = random.choice(cands)
                     name = poi.name
             node = ItineraryNode(
-                trip_id=trip.id, day_id=day.id, node_type=item["node_type"],
+                trip_id=trip.id, day_id=day.id, city=day_city,
+                node_type=item["node_type"],
                 name=name, duration_minutes=item["duration_minutes"],
                 sort_order=order, poi_id=poi.id if poi else None,
             )
@@ -240,6 +241,7 @@ def compute_day_timeline(db: Session, day: TripDay) -> dict:
             "id": node.id,
             "node_type": node.node_type,
             "name": node.name,
+            "city": node.city,
             "duration_minutes": node.duration_minutes,
             "sort_order": node.sort_order,
             "note": node.note,
@@ -247,8 +249,11 @@ def compute_day_timeline(db: Session, day: TripDay) -> dict:
             "poi": {
                 "id": poi.id, "city": poi.city, "poi_type": poi.poi_type,
                 "name": poi.name, "address": poi.address,
-                "open_hours": poi.open_hours, "ticket_price": poi.ticket_price,
+                "open_hours": poi.open_hours, "phone": poi.phone,
+                "ticket_price": poi.ticket_price,
                 "rating": float(poi.rating) if poi.rating is not None else None,
+                "lat": float(poi.lat) if poi.lat is not None else None,
+                "lng": float(poi.lng) if poi.lng is not None else None,
                 "source": poi.source,
             } if poi else None,
             "start_time": _fmt(start),

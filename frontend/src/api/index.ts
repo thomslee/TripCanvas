@@ -285,6 +285,14 @@ export const autoReplaceApi = {
   run: (tripId: number) => http.post<AutoReplaceResult>(`/trips/${tripId}/auto-replace-pois`),
 }
 
+export const recalcTransportApi = {
+  run: (tripId: number) => http.post<{ updated: number; timeline: any }>(`/trips/${tripId}/recalc-transport`),
+}
+
+export const citiesApi = {
+  search: (q: string = '') => http.get<{ name: string; pinyin: string; province: string }[]>('/cities', { params: { q, limit: 50 } }),
+}
+
 export interface AuthUser {
   id: number
   username: string

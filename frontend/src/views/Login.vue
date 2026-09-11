@@ -75,7 +75,6 @@ async function onSubmit() {
         <template v-if="mode === 'login'">还没有账号？<span @click="mode = 'register'">立即注册</span></template>
         <template v-else>已有账号？<span @click="mode = 'login'">去登录</span></template>
       </p>
-      <p class="login-admin">默认管理员：admin / admin123</p>
     </div>
   </div>
 </template>
