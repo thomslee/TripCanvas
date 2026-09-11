@@ -158,48 +158,56 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
     """批量将行程中 AI 推荐的节点替换为高德真实 POI。
 
     遍历所有 source='ai' 的节点，用节点名称搜索高德，取同类型第一个结果替换。
-    同名节点只搜索一次（缓存），搜索不到的保留原样。
+    多城市行程按节点所在天的城市搜索，同名不同城分开缓存。
     返回 {replaced, failed, items: [{node_name, old, new, status}]}
     """
-    # 找出所有 AI 推荐节点（poi.source == 'ai'）
+    from ..models.trip import TripDay
+    # 找出所有 AI 推荐节点（poi.source == 'ai'），同时获取所在天的城市
     ai_nodes = (
-        db.query(ItineraryNode)
+        db.query(ItineraryNode, TripDay.city)
         .join(Poi, ItineraryNode.poi_id == Poi.id)
+        .join(TripDay, ItineraryNode.day_id == TripDay.id)
         .filter(ItineraryNode.trip_id == trip.id, Poi.source == "ai")
         .all()
     )
     if not ai_nodes:
         return {"replaced": 0, "failed": 0, "items": []}
 
-    city = trip.dest_city or ""
-    # 按名称去重，同名节点只搜索一次
-    name_cache: dict[str, Poi | None] = {}
+    # 按 (名称, 城市) 去重缓存，同名不同城可能匹配到不同结果
+    name_cache: dict[tuple[str, str], Poi | None] = {}
     replaced = 0
     failed = 0
     items = []
 
-    for node in ai_nodes:
+    for node, city in ai_nodes:
+        city = city or trip.dest_city or ""
         name = node.name.strip()
         if not name:
             failed += 1
             items.append({"node_name": name, "old": name, "new": None, "status": "empty_name"})
             continue
 
-        if name in name_cache:
-            matched = name_cache[name]
+        cache_key = (name, city)
+        if cache_key in name_cache:
+            matched = name_cache[cache_key]
         else:
             # 搜索高德，加类型后缀提高匹配率
             type_suffix = {"hotel": "酒店", "restaurant": "餐厅", "attraction": "", "station": ""}.get(node.node_type, "")
             keyword = name if any(k in name for k in ["酒店", "宾馆", "客栈", "餐厅", "饭店", "景区", "公园", "古镇", "古城"]) else name + type_suffix
             try:
+                # 优先按当天城市搜索
                 results = search_pois(db, keyword=keyword, city=city, limit=10)
-                # 只匹配真实来源 POI（gaode/seed），跳过 ai 来源避免匹配到自己
                 real_results = [p for p in results if p.source in ("gaode", "seed")]
                 matched = next((p for p in real_results if p.poi_type == node.node_type), None)
+                # 跨城天可能一天内有两个城市，按当天城市搜不到时不带城市限制重试
+                if not matched and city:
+                    results2 = search_pois(db, keyword=keyword, city="", limit=10)
+                    real_results2 = [p for p in results2 if p.source in ("gaode", "seed")]
+                    matched = next((p for p in real_results2 if p.poi_type == node.node_type), None)
             except Exception:
                 db.rollback()
                 matched = None
-            name_cache[name] = matched
+            name_cache[cache_key] = matched
             time.sleep(0.1)  # 避免高德频控
 
         if matched:
