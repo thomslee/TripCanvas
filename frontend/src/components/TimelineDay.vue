@@ -237,6 +237,7 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
           <div v-if="edgeOf(node)" class="edge-info" @click="openTransport(edgeOf(node)!)">
             <span class="edge-ico" v-html="transportIcons[edgeOf(node)!.transport] || ''"></span>
             <span class="edge-mode">{{ TRANSPORT_NAMES[edgeOf(node)!.transport] }}</span>
+            <span v-if="edgeOf(node)!.distance_km" class="edge-dist">{{ edgeOf(node)!.distance_km }}km</span>
             <span class="edge-dur">{{ fmtDur(edgeOf(node)!.duration_minutes) }}</span>
             <span class="edge-tap">切换</span>
           </div>
@@ -548,6 +549,13 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
 }
 .edge-mode {
   font-weight: 700;
+}
+.edge-dist {
+  color: var(--tc-ink-2);
+  font-size: 12px;
+  background: var(--tc-bg-2);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 .edge-dur {
   color: var(--tc-ink-2);

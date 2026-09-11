@@ -34,4 +34,5 @@ class ItineraryEdge(Base):
     to_node_id = Column(Integer, ForeignKey("itinerary_nodes.id", ondelete="CASCADE"), nullable=False)
     transport = Column(String(16), nullable=False)  # plane/train/ship/car/taxi/bus/metro/bike/walk
     duration_minutes = Column(Integer, nullable=False, default=30)
+    distance_km = Column(DECIMAL(6, 2), nullable=True)  # 两点间距离（公里）
     note = Column(String(255), nullable=True)

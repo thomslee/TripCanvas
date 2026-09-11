@@ -278,8 +278,13 @@ def patch_edge(edge_id: int, data: EdgePatch, db: Session = Depends(get_db),
     if "transport" in patch and patch["transport"]:
         edge.transport = patch["transport"]
         if "duration_minutes" not in patch:
-            edge.duration_minutes = seed_planner.TRANSPORT_DEFAULTS.get(
-                edge.transport, 30)
+            # 根据距离和交通方式速度重算时间
+            from ..services import distance_service
+            if edge.distance_km:
+                speed = distance_service.TRANSPORT_SPEEDS.get(edge.transport, 25.0)
+                edge.duration_minutes = max(1, int(round(float(edge.distance_km) / speed * 60)))
+            else:
+                edge.duration_minutes = seed_planner.TRANSPORT_DEFAULTS.get(edge.transport, 30)
     if "duration_minutes" in patch and patch["duration_minutes"]:
         edge.duration_minutes = patch["duration_minutes"]
     if "note" in patch:

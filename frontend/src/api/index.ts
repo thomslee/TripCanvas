@@ -137,6 +137,7 @@ export interface ItineraryEdge {
   to_node_id: number
   transport: Transport
   duration_minutes: number
+  distance_km: number | null
   note: string | null
 }
 

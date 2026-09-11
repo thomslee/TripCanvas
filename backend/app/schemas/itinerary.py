@@ -63,6 +63,7 @@ class EdgeOut(BaseModel):
     to_node_id: int
     transport: str
     duration_minutes: int
+    distance_km: Optional[float] = None
     note: Optional[str] = None
 
 

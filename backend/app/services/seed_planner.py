@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge
 from .trip_planner import compute_day_windows
 from .poi_service import search_pois
+from . import distance_service
 
 # 交通模式默认耗时（分钟），切换交通时按此值重算；用户可再微调
 TRANSPORT_DEFAULTS = {
@@ -124,14 +125,16 @@ def seed_trip_timeline(db: Session, trip: Trip) -> bool:
             nodes.append(node)
         db.flush()
 
-        # 相邻节点之间生成默认步行边
+        # 相邻节点之间生成边，按距离自动选择交通方式
         for k in range(len(nodes) - 1):
+            t = distance_service.calc_transport(db, nodes[k], nodes[k + 1])
             db.add(ItineraryEdge(
                 trip_id=trip.id,
                 from_node_id=nodes[k].id,
                 to_node_id=nodes[k + 1].id,
-                transport="walk",
-                duration_minutes=TRANSPORT_DEFAULTS["walk"],
+                transport=t["transport"],
+                duration_minutes=t["duration_minutes"],
+                distance_km=t["distance_km"],
             ))
 
     db.commit()
@@ -163,15 +166,21 @@ def _rebuild_day_edges(db: Session, trip_id: int, day_id: int, nodes: list[Itine
         pair = frozenset((a.id, b.id))
         prev = old_by_pair.get(pair)
         if prev is not None:
-            transport, dur = prev.transport, prev.duration_minutes
+            # 复用旧边的交通方式，但重新计算距离和时间
+            t = distance_service.calc_transport(db, a, b)
+            transport = prev.transport
+            dur = prev.duration_minutes
+            dist = t["distance_km"]
         else:
-            transport, dur = "walk", TRANSPORT_DEFAULTS["walk"]
+            t = distance_service.calc_transport(db, a, b)
+            transport, dur, dist = t["transport"], t["duration_minutes"], t["distance_km"]
         db.add(ItineraryEdge(
             trip_id=trip_id,
             from_node_id=a.id,
             to_node_id=b.id,
             transport=transport,
             duration_minutes=dur,
+            distance_km=dist,
         ))
 
 
@@ -260,6 +269,7 @@ def compute_day_timeline(db: Session, day: TripDay) -> dict:
             "to_node_id": e.to_node_id,
             "transport": e.transport,
             "duration_minutes": e.duration_minutes,
+            "distance_km": float(e.distance_km) if e.distance_km else None,
             "note": e.note,
         })
 
