@@ -107,7 +107,11 @@ class ReorderPayload(BaseModel):
 
 
 class TripPoiOut(BaseModel):
-    """行程中使用到的真实地点（去重）+ 出现信息。"""
-    poi: PoiSummary
-    count: int = Field(0, description="在轨迹图中出现的节点数")
+    """行程中使用到的地点（按节点顺序，每个节点单独显示）。"""
+    poi: Optional[PoiSummary] = None
+    node_id: int
+    day_no: int
+    node_type: str = ""
+    name: str = ""
+    count: int = Field(1, description="出现次数（兼容旧字段）")
     node_ids: List[int] = Field(default_factory=list)

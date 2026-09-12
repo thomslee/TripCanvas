@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 export interface PosDay {
   day_no: number
   date?: string
+  city?: string
   nodes: { id: number; name: string }[]
 }
 

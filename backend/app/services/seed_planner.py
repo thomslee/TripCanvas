@@ -315,3 +315,96 @@ def move_node(db: Session, node: ItineraryNode, direction: str) -> None:
 
     _rebuild_day_edges(db, node.trip_id, node.day_id, siblings)
     db.commit()
+
+
+def adjust_last_day_timing(db: Session, trip: Trip) -> dict:
+    """后处理：调整最后一天的时间安排，让出发站接近返程时间。
+    
+    如果最后一天总时长小于可用时长（返程时间前2小时），
+    就把多余时间均匀分配给景点/餐厅节点，避免太早去机场/车站。
+    返回调整说明。
+    """
+    days = (db.query(TripDay)
+            .filter(TripDay.trip_id == trip.id)
+            .order_by(TripDay.day_no)
+            .all())
+    if not days or not trip.depart_time:
+        return {"adjusted": False, "reason": "无返程时间"}
+
+    last_day = days[-1]
+    nodes = (db.query(ItineraryNode)
+             .filter(ItineraryNode.day_id == last_day.id)
+             .order_by(ItineraryNode.sort_order, ItineraryNode.id)
+             .all())
+    if len(nodes) < 2:
+        return {"adjusted": False, "reason": "节点过少"}
+
+    # 找到出发站节点（最后一个station类型，或最后一个节点）
+    depart_node = None
+    for n in reversed(nodes):
+        if n.node_type == 'station':
+            depart_node = n
+            break
+    if not depart_node:
+        depart_node = nodes[-1]
+
+    # 计算当天时间窗口
+    windows = compute_day_windows(trip.depart_date, trip.arrive_time,
+                                  trip.return_date, trip.depart_time, trip.total_days,
+                                  cities=_trip_day_cities(db, trip))
+    w = next((x for x in windows if x["day_no"] == last_day.day_no), None)
+    if not w:
+        return {"adjusted": False, "reason": "无时间窗口"}
+
+    ws = time.fromisoformat(w["start"])
+    # 目标结束时间：返程时间前2小时（飞机）或1小时（高铁）
+    depart_dt = datetime.combine(date.today(), trip.depart_time)
+    if trip.return_transport == 'plane':
+        target_end = (depart_dt - timedelta(hours=2)).time()
+    else:
+        target_end = (depart_dt - timedelta(hours=1)).time()
+
+    # 计算当前总时长（节点+交通）
+    node_durations = sum(n.duration_minutes for n in nodes)
+    edges = (db.query(ItineraryEdge)
+             .filter(ItineraryEdge.trip_id == trip.id)
+             .all())
+    edge_by_from = {e.from_node_id: e for e in edges}
+    transport_durations = 0
+    for i, n in enumerate(nodes[:-1]):
+        edge = edge_by_from.get(n.id)
+        transport_durations += edge.duration_minutes if edge else TRANSPORT_DEFAULTS.get("walk", 15)
+
+    total_used = node_durations + transport_durations
+    available = int((datetime.combine(date.today(), target_end) - datetime.combine(date.today(), ws)).total_seconds() / 60)
+
+    if total_used >= available - 30:  # 已经接近目标，不需要调整
+        return {"adjusted": False, "reason": f"已接近目标（已用{total_used}分钟，可用{int(available)}分钟）"}
+
+    # 计算需要增加的时间
+    extra = int(available - total_used)
+    if extra < 30:  # 增加太少不调整
+        return {"adjusted": False, "reason": f"差异过小（{extra}分钟）"}
+
+    # 找到可调整的节点（景点/餐厅，非酒店非station）
+    adjustable = [n for n in nodes if n.node_type in ('attraction', 'restaurant') and n != depart_node]
+    if not adjustable:
+        return {"adjusted": False, "reason": "无可调整节点"}
+
+    # 均匀分配额外时间，每个节点最多增加120分钟
+    per_node = min(extra // len(adjustable), 120)
+    if per_node < 15:
+        return {"adjusted": False, "reason": f"每节点增加过少（{per_node}分钟）"}
+
+    total_added = 0
+    for n in adjustable:
+        n.duration_minutes += per_node
+        total_added += per_node
+
+    db.commit()
+
+    return {
+        "adjusted": True,
+        "reason": f"最后一天增加{total_added}分钟（每个景点/餐厅+{per_node}分钟），原{total_used}分钟→现{total_used + total_added}分钟，目标{int(available)}分钟",
+        "extra_added": total_added,
+    }

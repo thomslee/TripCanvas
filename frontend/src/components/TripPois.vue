@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { showConfirmDialog, showToast } from 'vant'
 import { poiApi, timelineApi, type TripPoi, type Poi } from '../api'
 import { nodeIcons } from './icons'
@@ -14,6 +14,12 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ (e: 'refresh'): void }>()
 
+// 多城市行程中添加地点时全国搜索，单城市则限定城市
+const searchCity = computed(() => {
+  const cities = new Set(props.days.map(d => d.city).filter(Boolean))
+  return cities.size > 1 ? null : (props.destCity ?? null)
+})
+
 const busy = ref(false)
 
 const TYPE_NAMES: Record<string, string> = { hotel: '酒店', attraction: '景点', restaurant: '餐厅', station: '交通' }
@@ -26,6 +32,10 @@ const showDetail = ref(false)
 const detailPoi = ref<Poi | null>(null)
 
 function openDetail(tp: TripPoi) {
+  if (!tp.poi) {
+    showToast('该地点尚未关联真实POI')
+    return
+  }
   detailPoi.value = tp.poi
   showDetail.value = true
 }
@@ -85,10 +95,11 @@ async function onPosition(choice: { dayNo: number; afterNodeId: number | null; l
 
 /* ---------- 删除（联动轨迹图） ---------- */
 async function onDelete(tp: TripPoi) {
+  const name = tp.poi?.name || tp.name
   try {
     await showConfirmDialog({
       title: '从行程移除',
-      message: `移除「${tp.poi.name}」？轨迹图中对应 ${tp.count} 个节点将一并删除。`,
+      message: `移除「${name}」（第${tp.day_no}天）？`,
     })
   } catch {
     return
@@ -96,7 +107,7 @@ async function onDelete(tp: TripPoi) {
   if (busy.value) return
   busy.value = true
   try {
-    await poiApi.deleteTrip(props.tripId, tp.poi.id)
+    await poiApi.deleteTrip(props.tripId, tp.node_id)
     showToast('已移除')
     emit('refresh')
   } catch (e) {
@@ -110,7 +121,7 @@ async function onDelete(tp: TripPoi) {
 <template>
   <div class="tpois">
     <div class="tpois-head">
-      <span class="tpois-title">行程真实地点</span>
+      <span class="tpois-title">行程地点</span>
       <span class="tpois-count">{{ pois.length }}</span>
       <span class="tpois-hint">AI 推荐后可增减感兴趣的地点</span>
       <div class="tpois-actions">
@@ -122,18 +133,18 @@ async function onDelete(tp: TripPoi) {
       轨迹图中还没有真实地点，点击轨迹图里的占位节点或添加节点即可替换/加入真实酒店、景点、餐厅。
     </div>
 
-    <div v-for="tp in pois" :key="tp.poi.id" class="tpois-item">
-      <div class="tp-icon" :style="{ color: TYPE_COLORS[tp.poi.poi_type], background: TYPE_COLORS[tp.poi.poi_type] + '1a' }"
-        v-html="nodeIcons[tp.poi.poi_type] || ''"></div>
+    <div v-for="tp in pois" :key="tp.node_id" class="tpois-item">
+      <div class="tp-icon" :style="{ color: TYPE_COLORS[tp.poi?.poi_type || tp.node_type], background: (TYPE_COLORS[tp.poi?.poi_type || tp.node_type] || '#999') + '1a' }"
+        v-html="nodeIcons[tp.poi?.poi_type || tp.node_type] || ''"></div>
       <div class="tp-main" @click="openDetail(tp)">
         <div class="tp-name-row">
-          <span class="tp-name">{{ tp.poi.name }}</span>
-          <span class="tp-type">{{ TYPE_NAMES[tp.poi.poi_type] }}</span>
-          <span v-if="tp.count > 1" class="tp-cnt">×{{ tp.count }}</span>
+          <span class="tp-name">{{ tp.poi?.name || tp.name }}</span>
+          <span class="tp-type">{{ TYPE_NAMES[tp.poi?.poi_type || tp.node_type] || tp.node_type }}</span>
+          <span class="tp-day">D{{ tp.day_no }}</span>
         </div>
         <div class="tp-meta">
-          <span v-if="tp.poi.address">{{ tp.poi.address }}</span>
-          <span v-if="tp.poi.phone">{{ tp.poi.phone }}</span>
+          <span v-if="tp.poi?.address">{{ tp.poi.address }}</span>
+          <span v-if="tp.poi?.phone">{{ tp.poi.phone }}</span>
         </div>
       </div>
       <div class="tp-ops">
@@ -158,8 +169,8 @@ async function onDelete(tp: TripPoi) {
     </van-popup>
 
     <PositionPicker v-model:show="showPos" :days="days" :default-day-no="days[0]?.day_no ?? 1"
-      :title="`插入「${picked ? picked.poi.name : pickedPoi?.name ?? ''}」到位置`" @select="onPosition" />
-    <PoiPicker v-model:show="showPicker" :city="destCity"
+      :title="`插入「${picked ? (picked.poi?.name || picked.name) : pickedPoi?.name ?? ''}」到位置`" @select="onPosition" />
+    <PoiPicker v-model:show="showPicker" :city="searchCity"
       title="添加感兴趣的地点（将在选择位置后加入行程）" @select="onPoiSelect" />
   </div>
 </template>
@@ -250,6 +261,14 @@ async function onDelete(tp: TripPoi) {
   font-size: 10.5px;
   color: var(--tc-orange);
   background: #fceedb;
+  border-radius: 6px;
+  padding: 0 6px;
+  flex: none;
+}
+.tp-day {
+  font-size: 10.5px;
+  color: var(--tc-teal-deep);
+  background: var(--tc-teal-soft);
   border-radius: 6px;
   padding: 0 6px;
   flex: none;

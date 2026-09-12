@@ -26,7 +26,6 @@ const form = reactive({
 const transportOptions = [
   { name: '飞机', value: 'plane' },
   { name: '高铁', value: 'train' },
-  { name: '客轮', value: 'ship' },
   { name: '自驾', value: 'car' },
 ]
 
@@ -47,15 +46,22 @@ async function onPickerSearch() {
       const { data } = await citiesApi.search(kw)
       pickerResults.value = data
     } else {
-      // 站点搜索：根据当前选中的城市搜索
-      let city = ''
-      if (pickerType.value === 'arriveStation') {
-        city = form.destCities[0]?.city || ''
-      } else if (pickerType.value === 'departStation') {
-        city = form.destCities[form.destCities.length - 1]?.city || ''
+      // 站点搜索：自驾时全国搜索任意地点，其他交通方式按城市搜索站点
+      const isCar = (pickerType.value === 'arriveStation' && form.departTransport === 'car') ||
+                    (pickerType.value === 'departStation' && form.returnTransport === 'car')
+      if (isCar) {
+        const { data } = await poiApi.searchAmap({ q: kw || '地点', city: '', limit: 20 })
+        pickerResults.value = data
+      } else {
+        let city = ''
+        if (pickerType.value === 'arriveStation') {
+          city = form.destCities[0]?.city || ''
+        } else if (pickerType.value === 'departStation') {
+          city = form.destCities[form.destCities.length - 1]?.city || ''
+        }
+        const { data } = await poiApi.searchAmap({ q: kw || '机场 高铁站', city, limit: 20 })
+        pickerResults.value = data.filter((p: any) => p.poi_type === 'station')
       }
-      const { data } = await poiApi.searchAmap({ q: kw || '机场 高铁站', city, limit: 20 })
-      pickerResults.value = data.filter((p: any) => p.poi_type === 'station')
     }
   } finally {
     pickerLoading.value = false
@@ -290,9 +296,8 @@ function fmtWin(w: DayWindow): string {
           <van-radio v-for="o in transportOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
         </van-radio-group>
       </div>
-      <van-cell title="到达站点" :value="form.arriveStation || '请选择（选填）'" is-link
-        :disabled="form.departTransport === 'car'"
-        @click="form.departTransport !== 'car' && openPicker('arriveStation')" />
+      <van-cell title="到达站点" :value="form.arriveStation || (form.departTransport === 'car' ? '请选择目的地（选填）' : '请选择（选填）')" is-link
+        @click="openPicker('arriveStation')" />
       <van-cell title="到达日期" is-link :value="form.departDate.length ? jDate(form.departDate) : ''"
         placeholder="必填" @click="showDepartDate = true" />
       <van-cell title="到达时间" is-link
@@ -305,9 +310,8 @@ function fmtWin(w: DayWindow): string {
           <van-radio v-for="o in transportOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
         </van-radio-group>
       </div>
-      <van-cell title="出发站点" :value="form.departStation || '请选择（选填）'" is-link
-        :disabled="form.returnTransport === 'car'"
-        @click="form.returnTransport !== 'car' && openPicker('departStation')" />
+      <van-cell title="出发站点" :value="form.departStation || (form.returnTransport === 'car' ? '请选择出发地（选填）' : '请选择（选填）')" is-link
+        @click="openPicker('departStation')" />
       <van-cell title="出发日期" is-link :value="form.returnDate.length ? jDate(form.returnDate) : ''"
         placeholder="必填" @click="showReturnDate = true" />
       <van-cell title="出发时间" is-link

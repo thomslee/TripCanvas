@@ -50,18 +50,19 @@ def get_node_coords(db: Session, node: ItineraryNode) -> tuple[float, float] | N
     return None
 
 
-def calc_transport(db: Session, from_node: ItineraryNode, to_node: ItineraryNode) -> dict:
+def calc_transport(db: Session, from_node: ItineraryNode, to_node: ItineraryNode, default_transport: str = "taxi") -> dict:
     """计算两节点间的距离、交通方式和耗时。
 
     返回 {distance_km, transport, duration_minutes}。
     无法获取坐标时返回默认值（打车30分钟，距离None）。
-    跨城（节点city不同）优先高铁/飞机，同城<1km步行，否则打车。
+    跨城（节点city不同）优先高铁/飞机，同城<1km步行，否则用default_transport。
+    default_transport: 默认交通方式，自驾行程传"car"，其他传"taxi"。
     """
     c1 = get_node_coords(db, from_node)
     c2 = get_node_coords(db, to_node)
 
     if not c1 or not c2:
-        return {"distance_km": None, "transport": "taxi", "duration_minutes": 30}
+        return {"distance_km": None, "transport": default_transport, "duration_minutes": 30}
 
     straight = haversine_km(c1[0], c1[1], c2[0], c2[1])
     distance = round(straight * ROUTE_FACTOR, 2)
@@ -80,7 +81,7 @@ def calc_transport(db: Session, from_node: ItineraryNode, to_node: ItineraryNode
     elif distance < WALK_MAX_DISTANCE:
         transport = "walk"
     else:
-        transport = "taxi"
+        transport = default_transport
 
     speed = TRANSPORT_SPEEDS.get(transport, 25.0)
     duration = max(1, int(round(distance / speed * 60)))

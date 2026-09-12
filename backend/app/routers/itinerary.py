@@ -96,54 +96,54 @@ def get_timeline(trip_id: int, db: Session = Depends(get_db),
 @router.get("/trips/{trip_id}/pois", response_model=list[TripPoiOut])
 def list_trip_pois(trip_id: int, db: Session = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
-    """行程中使用的真实地点清单（去重），供侧边列表展示与删除联动。"""
+    """行程中使用的地点清单（按节点顺序，每个节点单独显示，同名酒店可分别删除）。"""
     _get_trip(db, trip_id, current_user)
-    rows = (db.query(ItineraryNode.poi_id, func.count(ItineraryNode.id))
-            .filter(ItineraryNode.trip_id == trip_id,
-                    ItineraryNode.poi_id.isnot(None))
-            .group_by(ItineraryNode.poi_id)
-            .order_by(func.count(ItineraryNode.id).desc())
+    days = (db.query(TripDay)
+            .filter(TripDay.trip_id == trip_id)
+            .order_by(TripDay.day_no)
             .all())
+    day_map = {d.id: d.day_no for d in days}
+    nodes = (db.query(ItineraryNode)
+             .filter(ItineraryNode.trip_id == trip_id)
+             .order_by(ItineraryNode.day_id, ItineraryNode.sort_order, ItineraryNode.id)
+             .all())
     result = []
-    for poi_id, cnt in rows:
-        poi = db.get(Poi, poi_id)
-        if not poi:
-            continue
-        node_ids = [n.id for n in
-                    db.query(ItineraryNode)
-                    .filter(ItineraryNode.trip_id == trip_id,
-                            ItineraryNode.poi_id == poi_id)
-                    .all()]
-        result.append(TripPoiOut(poi=PoiSummary.model_validate(poi),
-                                 count=cnt, node_ids=node_ids))
+    for node in nodes:
+        poi = db.get(Poi, node.poi_id) if node.poi_id else None
+        result.append(TripPoiOut(
+            poi=PoiSummary.model_validate(poi) if poi else None,
+            node_id=node.id,
+            day_no=day_map.get(node.day_id, 0),
+            node_type=node.node_type,
+            name=node.name,
+            count=1,
+            node_ids=[node.id],
+        ))
     return result
 
 
-@router.delete("/trips/{trip_id}/pois/{poi_id}", status_code=204)
-def delete_trip_poi(trip_id: int, poi_id: int, db: Session = Depends(get_db),
-                    current_user: User = Depends(get_current_user)):
-    """从行程删除该真实地点：轨迹图中关联节点一并删除，边自动重建。"""
+@router.delete("/trips/{trip_id}/pois/node/{node_id}", status_code=204)
+def delete_trip_poi_node(trip_id: int, node_id: int, db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    """从行程删除指定节点（同名酒店可分别删除），边自动重建。"""
     _get_trip(db, trip_id, current_user)
-    nodes = (db.query(ItineraryNode)
-             .filter(ItineraryNode.trip_id == trip_id,
-                     ItineraryNode.poi_id == poi_id)
-             .all())
-    if not nodes:
-        raise HTTPException(status_code=404, detail="该地点不在行程中")
+    node = (db.query(ItineraryNode)
+            .filter(ItineraryNode.id == node_id, ItineraryNode.trip_id == trip_id)
+            .first())
+    if not node:
+        raise HTTPException(status_code=404, detail="该节点不在行程中")
 
-    day_ids = {n.day_id for n in nodes}
-    for n in nodes:
-        db.delete(n)
+    day_id = node.day_id
+    db.delete(node)
     db.flush()
 
-    for day_id in day_ids:
-        siblings = (db.query(ItineraryNode)
-                    .filter(ItineraryNode.day_id == day_id)
-                    .order_by(ItineraryNode.sort_order, ItineraryNode.id)
-                    .all())
-        for i, n in enumerate(siblings, start=1):
-            n.sort_order = i
-        seed_planner._rebuild_day_edges(db, trip_id, day_id, siblings)
+    siblings = (db.query(ItineraryNode)
+                .filter(ItineraryNode.day_id == day_id)
+                .order_by(ItineraryNode.sort_order, ItineraryNode.id)
+                .all())
+    for i, n in enumerate(siblings, start=1):
+        n.sort_order = i
+    seed_planner._rebuild_day_edges(db, trip_id, day_id, siblings)
     db.commit()
 
 
@@ -363,14 +363,40 @@ def recalc_transport(trip_id: int, db: Session = Depends(get_db),
     """重新计算行程所有边的交通方式、距离和用时。"""
     from ..services import distance_service
     trip = _get_trip(db, trip_id, current_user)
+
+    # 补全节点经纬度（如果节点有poi_id但lat/lng为空）
+    nodes = db.query(ItineraryNode).filter(ItineraryNode.trip_id == trip.id).all()
+    for node in nodes:
+        if node.poi_id and (node.lat is None or node.lng is None):
+            poi = db.get(Poi, node.poi_id)
+            if poi and poi.lat and poi.lng:
+                node.lat = poi.lat
+                node.lng = poi.lng
+    db.flush()
+
+    # 如果没有边，先重建所有天的边
     edges = db.query(ItineraryEdge).filter(ItineraryEdge.trip_id == trip.id).all()
+    if not edges:
+        days = db.query(TripDay).filter(TripDay.trip_id == trip.id).order_by(TripDay.day_no).all()
+        for day in days:
+            siblings = (db.query(ItineraryNode)
+                        .filter(ItineraryNode.day_id == day.id)
+                        .order_by(ItineraryNode.sort_order, ItineraryNode.id)
+                        .all())
+            seed_planner._rebuild_day_edges(db, trip.id, day.id, siblings)
+        db.flush()
+        edges = db.query(ItineraryEdge).filter(ItineraryEdge.trip_id == trip.id).all()
+
     updated = 0
+    # 自驾行程：除了短距离步行，其他都用自驾；其他行程用打车
+    is_car_trip = (trip.depart_transport == 'car' or trip.return_transport == 'car')
+    default_transport = 'car' if is_car_trip else 'taxi'
     for edge in edges:
         from_node = db.get(ItineraryNode, edge.from_node_id)
         to_node = db.get(ItineraryNode, edge.to_node_id)
         if not from_node or not to_node:
             continue
-        t = distance_service.calc_transport(db, from_node, to_node)
+        t = distance_service.calc_transport(db, from_node, to_node, default_transport)
         edge.distance_km = t["distance_km"]
         edge.transport = t["transport"]
         edge.duration_minutes = t["duration_minutes"]

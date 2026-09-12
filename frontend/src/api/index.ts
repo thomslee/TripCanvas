@@ -129,7 +129,11 @@ export interface ItineraryNode {
 }
 
 export interface TripPoi {
-  poi: Poi
+  poi: Poi | null
+  node_id: number
+  day_no: number
+  node_type: string
+  name: string
   count: number
   node_ids: number[]
 }
@@ -207,7 +211,7 @@ export const poiApi = {
     http.get<Poi[]>('/pois/search-amap', { params }),
   seed: () => http.post('/pois/seed'),
   listTrip: (tripId: number) => http.get<TripPoi[]>(`/trips/${tripId}/pois`),
-  deleteTrip: (tripId: number, poiId: number) => http.delete(`/trips/${tripId}/pois/${poiId}`),
+  deleteTrip: (tripId: number, nodeId: number) => http.delete(`/trips/${tripId}/pois/node/${nodeId}`),
 }
 
 export interface WeatherForecast {

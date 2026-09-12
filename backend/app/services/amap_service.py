@@ -271,9 +271,19 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
         if cache_key in name_cache:
             matched = name_cache[cache_key]
         else:
+            # 去掉"售票处"、"游客中心"等后缀，这些不是独立的POI
+            clean_name = name
+            for suffix in ["售票处", "游客中心", "景区入口", "入口", "服务中心", "停车场"]:
+                if clean_name.endswith(suffix):
+                    clean_name = clean_name[:-len(suffix)].strip()
+                    break
+            # 如果去掉后缀后名称变了，且节点类型是station，改为按attraction搜索
+            search_type = node.node_type
+            if clean_name != name and node.node_type == 'station':
+                search_type = 'attraction'
             # 搜索高德，加类型后缀提高匹配率
-            type_suffix = {"hotel": "酒店", "restaurant": "餐厅", "attraction": "", "station": ""}.get(node.node_type, "")
-            keyword = name if any(k in name for k in ["酒店", "宾馆", "客栈", "餐厅", "饭店", "景区", "公园", "古镇", "古城"]) else name + type_suffix
+            type_suffix = {"hotel": "酒店", "restaurant": "餐厅", "attraction": "", "station": ""}.get(search_type, "")
+            keyword = clean_name if any(k in clean_name for k in ["酒店", "宾馆", "客栈", "餐厅", "饭店", "景区", "公园", "古镇", "古城"]) else clean_name + type_suffix
             # 构建搜索城市顺序：当天城市优先，然后行程内其他目标城市依次
             search_cities = [city] if city else []
             for c in trip_cities:
@@ -286,11 +296,20 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
                     real_results = [p for p in results if p.source in ("gaode", "seed")]
                     # 过滤：类型一致 + 城市一致
                     candidates = [p for p in real_results
-                                  if p.poi_type == node.node_type
+                                  if p.poi_type == search_type
                                   and p.city
                                   and (p.city == city or p.city in city or city in p.city)]
                     if candidates:
-                        matched = _pick_best_match(name, candidates, node.node_type)
+                        matched = _pick_best_match(clean_name, candidates, search_type)
+                    if matched:
+                        break
+                    # 如果类型限制没找到，尝试不限制类型
+                    if not matched:
+                        candidates_any = [p for p in real_results
+                                          if p.city
+                                          and (p.city == city or p.city in city or city in p.city)]
+                        if candidates_any:
+                            matched = _pick_best_match(clean_name, candidates_any, search_type)
                     if matched:
                         break
                     # 如果当前城市没找到，尝试缩短关键词（去掉"T3""航站楼"等后缀）
@@ -300,11 +319,11 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
                             results2 = search_pois(db, keyword=short_kw, city=search_city, limit=10)
                             real2 = [p for p in results2 if p.source in ("gaode", "seed")]
                             candidates2 = [p for p in real2
-                                           if p.poi_type == node.node_type
+                                           if p.poi_type == search_type
                                            and p.city
                                            and (p.city == city or p.city in city or city in p.city)]
                             if candidates2:
-                                matched = _pick_best_match(name, candidates2, node.node_type)
+                                matched = _pick_best_match(clean_name, candidates2, search_type)
                             if matched:
                                 break
             except Exception:
@@ -316,6 +335,8 @@ def auto_replace_pois(db: Session, trip: Trip) -> dict:
         if matched:
             node.poi_id = matched.id
             node.name = matched.name  # 同步更新节点名称为真实POI名称
+            node.lat = matched.lat  # 同步更新经纬度
+            node.lng = matched.lng
             replaced += 1
             items.append({"node_name": name, "old": name, "new": matched.name, "status": "ok"})
         else:

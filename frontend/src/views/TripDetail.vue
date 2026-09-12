@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showConfirmDialog, showToast } from 'vant'
+import { showToast } from 'vant'
 import html2canvas from 'html2canvas'
-import { tripsApi, timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi,
+import { timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi,
   type Timeline, type TripPoi, type Weather } from '../api'
 import TimelineDay from '../components/TimelineDay.vue'
 import TripPois from '../components/TripPois.vue'
@@ -194,21 +194,6 @@ async function refresh() {
   await loadPois()
 }
 
-async function onDelete() {
-  try {
-    await showConfirmDialog({ title: '删除行程', message: '确定删除该行程吗？' })
-  } catch {
-    return
-  }
-  try {
-    await tripsApi.remove(tripId)
-    showToast('已删除')
-    router.replace('/')
-  } catch (e) {
-    showToast((e as Error).message)
-  }
-}
-
 /* ---------- 导出：复制文本 + 保存长图 ---------- */
 const TRANSPORT_NAMES: Record<string, string> = {
   plane: '飞机', train: '火车', ship: '轮船', car: '自驾',
@@ -304,6 +289,7 @@ watch(
     posDays.value = (tl?.days ?? []).map((d) => ({
       day_no: d.day_no,
       date: d.date,
+      city: d.city || undefined,
       nodes: d.nodes.map((n) => ({ id: n.id, name: n.name })),
     }))
   },
@@ -391,15 +377,14 @@ watch(
         </div>
         <div class="op-row">
           <button class="ai-btn" :disabled="replanning" @click="onReplan">
-            {{ replanning ? '规划中…' : 'AI 规划' }}
+            {{ replanning ? '优化中…' : 'AI 优化' }}
           </button>
           <button class="replace-btn" :disabled="autoReplacing" @click="onAutoReplace">
-            {{ autoReplacing ? '替换中…' : '一键替换真实地点' }}
+            {{ autoReplacing ? '校正中…' : '地点校正' }}
           </button>
           <button class="replace-btn" :disabled="recalcLoading" @click="onRecalcTransport">
             {{ recalcLoading ? '计算中…' : '交通规划' }}
           </button>
-          <button class="del-btn" @click="onDelete">删除行程</button>
         </div>
         <div class="export-row">
           <button class="export-btn" @click="copyTripText">复制行程</button>
@@ -416,7 +401,7 @@ watch(
         @refresh="refresh" />
 
       <TimelineDay v-for="d in timeline.days" :key="d.day_no" :day="d" :trip-id="tripId"
-        :dest-city="timeline.dest_city ?? null" @refresh="refresh" />
+        :dest-city="d.city || timeline.dest_city || null" @refresh="refresh" />
       </div>
 
       <van-popup v-model:show="showNotes" position="bottom" round>
