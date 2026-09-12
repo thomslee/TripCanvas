@@ -6,7 +6,7 @@ import { nodeIcons, transportIcons } from './icons'
 import PoiPicker from './PoiPicker.vue'
 import PositionPicker, { type PosDay } from './PositionPicker.vue'
 
-const props = defineProps<{ day: DayTimeline; tripId: number; destCity?: string | null }>()
+const props = defineProps<{ day: DayTimeline; tripId: number; destCity?: string | null; readonly?: boolean }>()
 const emit = defineEmits<{ (e: 'refresh'): void }>()
 
 const busy = ref(false)
@@ -184,7 +184,7 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
 </script>
 
 <template>
-  <div class="tlday">
+  <div class="tlday timeline-day-card">
     <div class="day-head">
       <div class="day-title">
         <span class="day-no">D{{ day.day_no }}</span>
@@ -220,7 +220,7 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
             </div>
             <div v-else-if="isAiPoi(node)" class="ai-tip">点击可替换为高德真实地点</div>
             <div v-else class="ph-tip">点击替换为真实地点</div>
-            <div class="node-ops" @click.stop>
+            <div v-if="!readonly" class="node-ops" @click.stop>
               <button class="op" title="减 30 分钟" @click="adjust(node, -30)">−30m</button>
               <button class="op" title="加 30 分钟" @click="adjust(node, 30)">+30m</button>
               <button class="op" :disabled="i === 0" title="上移" @click="move(node, 'up')">↑</button>

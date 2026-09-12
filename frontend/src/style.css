@@ -23,10 +23,14 @@ body {
   color: var(--tc-ink);
   font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 #app {
   min-height: 100vh;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 /* 通用卡片 */

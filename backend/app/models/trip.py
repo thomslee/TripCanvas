@@ -32,6 +32,7 @@ class Trip(Base):
 
     days = relationship("TripDay", back_populates="trip",
                         order_by="TripDay.day_no", cascade="all, delete-orphan")
+    shares = relationship("TripShare", back_populates="trip", cascade="all, delete-orphan")
 
 
 class TripDay(Base):

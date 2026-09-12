@@ -2,13 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import html2canvas from 'html2canvas'
-import { timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi,
+import { timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi, shareApi,
   type Timeline, type TripPoi, type Weather } from '../api'
 import TimelineDay from '../components/TimelineDay.vue'
 import TripPois from '../components/TripPois.vue'
 import type { PosDay } from '../components/PositionPicker.vue'
 import { weatherIcons } from '../components/icons'
+import { exportTripToPDF } from '../utils/pdfExport'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,6 +152,79 @@ async function onRecalcTransport() {
   }
 }
 
+/* ---------- PDF导出：每天一页 ---------- */
+const pdfExporting = ref(false)
+
+async function onExportPDF() {
+  if (pdfExporting.value || !timeline.value) return
+  pdfExporting.value = true
+  try {
+    // 获取每天的TimelineDay元素
+    const dayElements = document.querySelectorAll('.timeline-day-card')
+    if (!dayElements.length) {
+      showToast('暂无行程数据')
+      return
+    }
+    const elements = Array.from(dayElements) as HTMLElement[]
+    const filename = `${timeline.value.title || '行程'}_${new Date().toISOString().slice(0, 10)}.pdf`
+    await exportTripToPDF(timeline.value.title || '行程', elements, filename)
+    showToast('PDF已导出')
+  } catch (e) {
+    showToast('PDF导出失败')
+    console.error(e)
+  } finally {
+    pdfExporting.value = false
+  }
+}
+
+/* ---------- 分享：生成链接+海报 ---------- */
+const showShare = ref(false)
+const shareLoading = ref(false)
+const shareUrl = ref('')
+const shareExpires = ref('')
+
+async function openShare() {
+  showShare.value = true
+  if (!shareUrl.value) {
+    await generateShareLink()
+  }
+}
+
+async function generateShareLink() {
+  shareLoading.value = true
+  try {
+    const { data } = await shareApi.create(tripId)
+    const baseUrl = window.location.origin
+    shareUrl.value = `${baseUrl}/share/${data.token}`
+    shareExpires.value = new Date(data.expires_at).toLocaleDateString('zh-CN')
+  } catch (e) {
+    showToast('生成分享链接失败')
+  } finally {
+    shareLoading.value = false
+  }
+}
+
+async function copyShareLink() {
+  const text = shareUrl.value
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      // 降级方案：用textarea + execCommand
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    showToast('链接已复制，7天内有效')
+  } catch {
+    showToast('复制失败，请长按链接手动复制')
+  }
+}
+
 const dateRange = computed(() => {
   const days = timeline.value?.days ?? []
   if (!days.length) return ''
@@ -212,73 +285,6 @@ function fmtDur(min: number): string {
   return `${min}m`
 }
 
-function buildTripText(): string {
-  if (!timeline.value) return ''
-  const lines: string[] = []
-  lines.push(title.value)
-  lines.push(`${timeline.value.dest_city} · ${dateRange.value} · ${timeline.value.days.length}天`)
-  lines.push('')
-  for (const day of timeline.value.days) {
-    const cityTag = day.city ? ` ${day.city}` : ''
-    lines.push(`D${day.day_no}${cityTag}（${day.date}） ${day.window_start}-${day.window_end}`)
-    for (const node of day.nodes) {
-      const st = node.start_time ? node.start_time.slice(0, 5) : '--:--'
-      const type = NODE_TYPE_NAMES[node.node_type] ?? node.node_type
-      lines.push(`  ${st} ${node.name}（${type}）${fmtDur(node.duration_minutes)}`)
-      const edge = day.edges.find((e) => e.from_node_id === node.id)
-      if (edge) {
-        const t = TRANSPORT_NAMES[edge.transport] ?? edge.transport
-        lines.push(`    ↓ ${t} ${edge.duration_minutes}m`)
-      }
-    }
-    lines.push('')
-  }
-  return lines.join('\n')
-}
-
-async function copyTripText() {
-  const text = buildTripText()
-  try {
-    await navigator.clipboard.writeText(text)
-    showToast('行程已复制到剪贴板')
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
-    showToast('行程已复制')
-  }
-}
-
-const exportRef = ref<HTMLElement | null>(null)
-const exporting = ref(false)
-
-async function saveLongImage() {
-  if (!exportRef.value || exporting.value) return
-  exporting.value = true
-  try {
-    const canvas = await html2canvas(exportRef.value, {
-      backgroundColor: '#f4f6f5',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    })
-    const link = document.createElement('a')
-    link.download = `${title.value || '行程'}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
-    showToast('长图已保存')
-  } catch {
-    showToast('保存失败，请重试')
-  } finally {
-    exporting.value = false
-  }
-}
-
 onMounted(load)
 
 const posDays = ref<PosDay[]>([])
@@ -326,7 +332,7 @@ watch(
         <div v-if="aiPlanning" class="ai-loading-hint">大模型正在规划中，通常需要 5-15 秒…</div>
       </div>
 
-      <div v-else ref="exportRef">
+      <div v-else>
       <div class="tc-card trip-head">
         <div class="head-row1">
           <span class="head-title">{{ title }}</span>
@@ -387,10 +393,10 @@ watch(
           </button>
         </div>
         <div class="export-row">
-          <button class="export-btn" @click="copyTripText">复制行程</button>
-          <button class="export-btn" :disabled="exporting" @click="saveLongImage">
-            {{ exporting ? '生成中…' : '保存长图' }}
+          <button class="export-btn" :disabled="pdfExporting" @click="onExportPDF">
+            {{ pdfExporting ? '导出中…' : '导出PDF' }}
           </button>
+          <button class="export-btn" @click="openShare">分享</button>
         </div>
         <div class="hint">
           先看上方真实地点清单，再在下方轨迹图中调整；点占位节点可替换为真实地点，点「真实」节点查看营业时间/票价等。
@@ -415,6 +421,22 @@ watch(
           </div>
           <div v-else class="notes-empty">没有需要调整的项，当前行程已是最优。</div>
           <button class="notes-close" @click="showNotes = false">知道了</button>
+        </div>
+      </van-popup>
+
+      <!-- 分享弹窗 -->
+      <van-popup v-model:show="showShare" position="bottom" round>
+        <div class="share-panel">
+          <div class="share-title">分享行程</div>
+          <div class="share-desc">生成只读链接，好友无需登录即可查看，7天内有效</div>
+          <div v-if="shareLoading" class="share-loading">生成中…</div>
+          <div v-else-if="shareUrl" class="share-link-box">
+            <div class="share-url" style="user-select:text;cursor:text;">{{ shareUrl }}</div>
+            <div class="share-expire">有效期至 {{ shareExpires }}</div>
+            <button class="share-copy-btn" @click="copyShareLink">复制链接</button>
+          </div>
+          <div v-else class="share-loading">生成失败，请重试</div>
+          <button class="share-close" @click="showShare = false">关闭</button>
         </div>
       </van-popup>
     </template>
@@ -751,6 +773,106 @@ watch(
   color: #fff;
   font-size: 14px;
   font-weight: 600;
+  border-radius: 10px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.share-panel {
+  padding: 20px 16px 24px;
+}
+.share-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--tc-ink);
+  text-align: center;
+}
+.share-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--tc-ink-3);
+  text-align: center;
+}
+.share-loading {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--tc-ink-3);
+  padding: 20px 0;
+}
+.share-link-box {
+  margin-top: 16px;
+  background: var(--tc-bg);
+  border-radius: 10px;
+  padding: 12px;
+}
+.share-url {
+  font-size: 12px;
+  color: var(--tc-ink);
+  word-break: break-all;
+  line-height: 1.5;
+}
+.share-expire {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--tc-orange);
+}
+.share-copy-btn {
+  margin-top: 10px;
+  width: 100%;
+  border: none;
+  background: var(--tc-teal);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.share-close {
+  margin-top: 14px;
+  width: 100%;
+  border: 1px solid var(--tc-line);
+  background: #fff;
+  color: var(--tc-ink-3);
+  font-size: 13px;
+  border-radius: 10px;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.poster-panel {
+  padding: 16px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.poster-title {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tc-ink);
+  margin-bottom: 12px;
+}
+.poster-img-wrap {
+  flex: 1;
+  overflow-y: auto;
+  text-align: center;
+  background: var(--tc-bg);
+  border-radius: 8px;
+  padding: 8px;
+}
+.poster-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+.poster-close {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid var(--tc-line);
+  background: #fff;
+  color: var(--tc-ink-3);
+  font-size: 14px;
   border-radius: 10px;
   padding: 10px 0;
   cursor: pointer;

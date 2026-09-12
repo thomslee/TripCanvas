@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { getToken } from '../api'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,20 +11,32 @@ const router = createRouter({
     { path: '/trips/:id', name: 'detail', component: () => import('../views/TripDetail.vue') },
     { path: '/profile', name: 'profile', component: () => import('../views/Profile.vue') },
     { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { admin: true } },
+    { path: '/share/:token', name: 'share', component: () => import('../views/ShareView.vue'), meta: { public: true } },
   ],
+  scrollBehavior() {
+    return { top: 0 }
+  },
 })
 
 router.beforeEach(async (to) => {
   const userStore = useUserStore()
-  // 首次进入时恢复登录态
-  if (!userStore.user && localStorage.getItem('tripcanvas_token')) {
-    await userStore.fetchMe()
+  // 分享页面始终可访问，不需要登录
+  if (to.name === 'share') return true
+  // 恢复登录态（仅在没有user信息且有token时）
+  if (!userStore.user && getToken()) {
+    try {
+      await userStore.fetchMe()
+    } catch {
+      // fetchMe失败不阻塞，继续后续判断
+    }
   }
+  // 公开页面：已登录则跳首页，未登录放行
   if (to.meta.public) {
-    if (userStore.isLoggedIn) return '/'
-    return true
+    return userStore.isLoggedIn ? '/' : true
   }
+  // 私有页面：未登录跳登录页
   if (!userStore.isLoggedIn) return '/login'
+  // 管理员页面：非管理员跳首页
   if (to.meta.admin && !userStore.isAdmin) return '/'
   return true
 })

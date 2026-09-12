@@ -27,7 +27,8 @@ async function onSubmit() {
       await userStore.register(username.value.trim(), password.value, nickname.value.trim() || undefined)
       showToast('注册成功')
     }
-    router.push('/')
+    // 用replace避免返回键回到登录页，加小延迟确保状态更新
+    setTimeout(() => router.replace('/'), 100)
   } catch (e: any) {
     showToast(e.message || '操作失败')
   } finally {

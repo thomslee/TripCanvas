@@ -297,6 +297,11 @@ export const citiesApi = {
   search: (q: string = '') => http.get<{ name: string; pinyin: string; province: string }[]>('/cities', { params: { q, limit: 50 } }),
 }
 
+export const shareApi = {
+  create: (tripId: number) => http.post<{ token: string; url: string; expires_at: string; days_valid: number }>(`/trips/${tripId}/share`),
+  get: (token: string) => http.get<any>(`/share/${token}`),
+}
+
 export interface AuthUser {
   id: number
   username: string
