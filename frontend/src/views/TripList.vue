@@ -55,6 +55,7 @@ const statusText: Record<string, string> = {
   planning: '规划中',
   active: '进行中',
   done: '已完成',
+  finalized: '已定稿',
 }
 </script>
 
@@ -257,6 +258,10 @@ const statusText: Record<string, string> = {
   border-radius: 999px;
   background: var(--tc-teal-soft);
   color: var(--tc-teal-deep);
+}
+.trip-status.finalized {
+  background: #fff3e0;
+  color: #e65100;
 }
 .trip-meta {
   display: flex;

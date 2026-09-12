@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi, shareApi,
+import { timelineApi, poiApi, weatherApi, replanApi, aiPlanApi, autoReplaceApi, recalcTransportApi, shareApi, tripsApi,
   type Timeline, type TripPoi, type Weather } from '../api'
 import TimelineDay from '../components/TimelineDay.vue'
 import TripPois from '../components/TripPois.vue'
@@ -21,6 +21,54 @@ const loading = ref(true)
 const weatherMap = ref<Record<string, Weather>>({})
 const weatherLoading = ref(false)
 const weatherFail = ref<string[]>([])
+
+/* ---------- 行程状态（定稿） ---------- */
+const STATUS_TEXT: Record<string, string> = {
+  draft: '草稿',
+  planning: '规划中',
+  active: '进行中',
+  done: '已完成',
+  finalized: '已定稿',
+}
+const tripStatus = ref('draft')
+const finalizing = ref(false)
+
+async function loadTripStatus() {
+  try {
+    const { data } = await tripsApi.get(tripId)
+    tripStatus.value = data.status
+  } catch {
+    /* 状态获取失败不阻塞详情加载 */
+  }
+}
+
+async function onFinalize() {
+  if (finalizing.value) return
+  finalizing.value = true
+  try {
+    const { data } = await tripsApi.finalize(tripId)
+    tripStatus.value = data.status
+    showToast('行程已定稿，可在途迹记忆中同步')
+  } catch (e) {
+    showToast((e as Error).message || '定稿失败')
+  } finally {
+    finalizing.value = false
+  }
+}
+
+async function onUnfinalize() {
+  if (finalizing.value) return
+  finalizing.value = true
+  try {
+    const { data } = await tripsApi.unfinalize(tripId)
+    tripStatus.value = data.status
+    showToast('已取消定稿，恢复为草稿')
+  } catch (e) {
+    showToast((e as Error).message || '操作失败')
+  } finally {
+    finalizing.value = false
+  }
+}
 
 /* ---------- 行程城市（天气按城市动态生成卡片） ---------- */
 const cities = computed(() => {
@@ -237,6 +285,7 @@ async function load() {
     const tl = await timelineApi.get(tripId)
     timeline.value = tl.data
     title.value = tl.data.title ?? ''
+    await loadTripStatus()
     await loadWeatherAll()
     await loadPois()
   } catch (e) {
@@ -268,23 +317,6 @@ async function refresh() {
 }
 
 /* ---------- 导出：复制文本 + 保存长图 ---------- */
-const TRANSPORT_NAMES: Record<string, string> = {
-  plane: '飞机', train: '火车', ship: '轮船', car: '自驾',
-  taxi: '打车', bus: '公交', metro: '地铁', bike: '自行车', walk: '步行',
-}
-const NODE_TYPE_NAMES: Record<string, string> = {
-  hotel: '酒店', attraction: '景点', restaurant: '餐厅', transfer: '交通',
-}
-
-function fmtDur(min: number): string {
-  if (min >= 60) {
-    const h = Math.floor(min / 60)
-    const m = min % 60
-    return m ? `${h}h${m}m` : `${h}h`
-  }
-  return `${min}m`
-}
-
 onMounted(load)
 
 const posDays = ref<PosDay[]>([])
@@ -336,7 +368,7 @@ watch(
       <div class="tc-card trip-head">
         <div class="head-row1">
           <span class="head-title">{{ title }}</span>
-          <span class="badge">草稿</span>
+          <span class="badge" :class="tripStatus">{{ STATUS_TEXT[tripStatus] || tripStatus }}</span>
         </div>
         <div class="head-route">
           {{ timeline.dest_city }} · {{ dateRange }} · {{ timeline.days.length }}天
@@ -382,6 +414,12 @@ watch(
           </div>
         </div>
         <div class="op-row">
+          <button v-if="tripStatus !== 'finalized'" class="ai-btn" :disabled="finalizing" @click="onFinalize">
+            {{ finalizing ? '定稿中…' : '行程定稿' }}
+          </button>
+          <button v-else class="export-btn" :disabled="finalizing" @click="onUnfinalize">
+            {{ finalizing ? '处理中…' : '取消定稿' }}
+          </button>
           <button class="ai-btn" :disabled="replanning" @click="onReplan">
             {{ replanning ? '优化中…' : 'AI 优化' }}
           </button>
@@ -515,6 +553,10 @@ watch(
   color: var(--tc-teal-deep);
   flex: none;
 }
+.badge.finalized {
+  background: #fff3e0;
+  color: #e65100;
+}
 .head-row1 {
   display: flex;
   align-items: center;
@@ -555,6 +597,7 @@ watch(
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 .export-row {
   margin-top: 8px;

@@ -4,11 +4,14 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_user
-from ..models import Trip, User
+from ..models import Trip, User, ItineraryNode
 from ..schemas import TripCreate, TripOut, TripCreateOut, DayWindowOut
 from ..services import trip_planner
 
 router = APIRouter(prefix="/api/trips", tags=["trips"])
+
+# 行程状态机：draft(草稿) -> planning(规划中) -> active(进行中) -> finalized(已定稿)
+VALID_STATUSES = {"draft", "planning", "active", "done", "finalized"}
 
 
 def _own_trip(db: Session, trip_id: int, user: User) -> Trip:
@@ -80,7 +83,51 @@ def update_trip(trip_id: int, payload: dict, db: Session = Depends(get_db),
     allowed = {"title", "status", "preferences", "ai_version"}
     for k, v in payload.items():
         if k in allowed:
+            if k == "status" and v not in VALID_STATUSES:
+                raise HTTPException(status_code=422, detail=f"无效的状态值: {v}")
             setattr(trip, k, v)
+    db.commit()
+    db.refresh(trip)
+    return trip
+
+
+@router.post("/{trip_id}/finalize", response_model=TripOut)
+def finalize_trip(trip_id: int, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    """行程定稿：行程节点已生成且无冲突后，将行程置为 finalized，供下游（TripMemory）同步。
+
+    定稿条件：
+    1. 行程至少包含一个节点；
+    2. 时间线无冲突（如有冲突需先解决）。
+    """
+    trip = _own_trip(db, trip_id, current_user)
+    node_count = (db.query(ItineraryNode)
+                  .filter(ItineraryNode.trip_id == trip_id).count())
+    if node_count == 0:
+        raise HTTPException(status_code=422, detail="行程还没有任何节点，无法定稿，请先 AI 生成或手动添加")
+
+    # 时间线冲突检查（复用时间线计算逻辑）
+    from ..services.seed_planner import compute_day_timeline
+    conflicts = []
+    for day in trip.days:
+        tl = compute_day_timeline(db, day)
+        if tl.get("conflict"):
+            conflicts.append(f"第{day.day_no}天：{tl.get('note', '')}")
+    if conflicts:
+        raise HTTPException(status_code=422, detail="行程时间线存在冲突，无法定稿：" + "；".join(conflicts[:3]))
+
+    trip.status = "finalized"
+    db.commit()
+    db.refresh(trip)
+    return trip
+
+
+@router.post("/{trip_id}/unfinalize", response_model=TripOut)
+def unfinalize_trip(trip_id: int, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    """取消定稿：回到草稿状态，可继续编辑。"""
+    trip = _own_trip(db, trip_id, current_user)
+    trip.status = "draft"
     db.commit()
     db.refresh(trip)
     return trip

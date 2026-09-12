@@ -186,6 +186,8 @@ export const tripsApi = {
   remove: (id: number) => http.delete(`/trips/${id}`),
   patch: (id: number, payload: Record<string, unknown>) => http.patch<Trip>(`/trips/${id}`, payload),
   duplicate: (id: number) => http.post<Trip>(`/trips/${id}/duplicate`),
+  finalize: (id: number) => http.post<Trip>(`/trips/${id}/finalize`),
+  unfinalize: (id: number) => http.post<Trip>(`/trips/${id}/unfinalize`),
 }
 
 export const timelineApi = {
