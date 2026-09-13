@@ -42,10 +42,13 @@ def create_trip(data: TripCreate, db: Session = Depends(get_db),
         return_transport=trip.return_transport,
     )
     messages = []
+    transport_names = {'plane': '航班', 'train': '高铁', 'car': '自驾', 'ship': '客轮'}
+    depart_name = transport_names.get(trip.depart_transport, '交通')
+    return_name = transport_names.get(trip.return_transport, '交通')
     if trip.arrive_time is None:
-        messages.append("去程到达时刻未填，D1 按全天计算，建议补充航班信息")
+        messages.append(f"去程到达时刻未填，D1 按全天计算，建议补充{depart_name}信息")
     if trip.depart_time is None:
-        messages.append("返程起飞时刻未填，末日按全天计算，建议补充航班信息")
+        messages.append(f"返程出发时刻未填，末日按全天计算，建议补充{return_name}信息")
 
     return TripCreateOut(trip=TripOut.model_validate(trip),
                          windows=[DayWindowOut(**w) for w in windows],
@@ -112,7 +115,8 @@ def finalize_trip(trip_id: int, db: Session = Depends(get_db),
     for day in trip.days:
         tl = compute_day_timeline(db, day)
         if tl.get("conflict"):
-            conflicts.append(f"第{day.day_no}天：{tl.get('note', '')}")
+            overflow = tl.get("overflow_min", 0)
+            conflicts.append(f"第{day.day_no}天：行程超出可用时间{overflow}分钟，请调整节点时长或交通方式")
     if conflicts:
         raise HTTPException(status_code=422, detail="行程时间线存在冲突，无法定稿：" + "；".join(conflicts[:3]))
 

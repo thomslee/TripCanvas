@@ -82,9 +82,12 @@ async function remove(node: ItineraryNode) {
 /* ---------- 替换为真实地点 ---------- */
 const replaceTarget = ref<ItineraryNode | null>(null)
 const showReplace = ref(false)
+const replaceCity = ref<string | null | undefined>(undefined)
 
 function openReplace(node: ItineraryNode) {
   replaceTarget.value = node
+  // 跨城天：优先用节点自身的city搜索，避免搜不到另一城市的地点
+  replaceCity.value = node.city || props.destCity
   showReplace.value = true
 }
 
@@ -218,8 +221,6 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
               <span v-if="node.poi!.ticket_price">{{ node.poi!.ticket_price }}</span>
               <span v-if="node.poi!.rating">评分 {{ node.poi!.rating }}</span>
             </div>
-            <div v-else-if="isAiPoi(node)" class="ai-tip">点击可替换为高德真实地点</div>
-            <div v-else class="ph-tip">点击替换为真实地点</div>
             <div v-if="!readonly" class="node-ops" @click.stop>
               <button class="op" title="减 30 分钟" @click="adjust(node, -30)">−30m</button>
               <button class="op" title="加 30 分钟" @click="adjust(node, 30)">+30m</button>
@@ -286,12 +287,12 @@ function edgeOf(node: ItineraryNode): ItineraryEdge | null {
     </van-popup>
 
     <!-- 替换为真实地点 -->
-    <PoiPicker v-model:show="showReplace" :city="destCity" :type="replaceTarget?.node_type ?? null"
+    <PoiPicker v-model:show="showReplace" :city="replaceCity" :type="replaceTarget?.node_type ?? null"
       :title="`替换「${replaceTarget?.name ?? ''}」为真实地点`" :initial-keyword="replaceTarget?.name ?? ''"
       @select="onReplacePoi" />
 
     <!-- 添加：搜索真实地点 -->
-    <PoiPicker v-model:show="showPoiPicker" :city="destCity" :type="null" :title="'添加真实地点'" @select="onPickedPoi" />
+    <PoiPicker v-model:show="showPoiPicker" :city="null" :type="null" :title="'添加真实地点'" @select="onPickedPoi" />
 
     <!-- 插入位置 -->
     <PositionPicker v-model:show="showPosition" :days="posDays" :default-day-no="day.day_no"

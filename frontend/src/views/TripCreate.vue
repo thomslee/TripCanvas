@@ -95,12 +95,18 @@ function selectPicker(item: any) {
   showPicker.value = false
 }
 
+/* 获取当天日期数组，格式 ['YYYY', 'MM', 'DD'] */
+function todayArr() {
+  const d = new Date()
+  return [String(d.getFullYear()), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')]
+}
+
 /* 每次进入创建页重置表单，避免保留上次填写内容 */
 function resetForm() {
   form.departCity = ''
   form.destCities = [{ city: '', days: 1 }]
-  form.departDate = []
-  form.returnDate = []
+  form.departDate = todayArr()
+  form.returnDate = todayArr()
   form.arriveTime = []
   form.departTime = []
   form.departTransport = 'plane'
@@ -352,11 +358,11 @@ function fmtWin(w: DayWindow): string {
 
     <!-- 日期选择 -->
     <van-popup v-model:show="showDepartDate" position="bottom" round>
-      <van-date-picker v-model="form.departDate" title="选择到达日期" :min-date="new Date()"
+      <van-date-picker v-model="form.departDate" title="选择到达日期"
         @confirm="showDepartDate = false" @cancel="showDepartDate = false" />
     </van-popup>
     <van-popup v-model:show="showReturnDate" position="bottom" round>
-      <van-date-picker v-model="form.returnDate" title="选择出发日期" :min-date="new Date()"
+      <van-date-picker v-model="form.returnDate" title="选择出发日期"
         @confirm="showReturnDate = false" @cancel="showReturnDate = false" />
     </van-popup>
 

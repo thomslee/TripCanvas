@@ -126,6 +126,7 @@ export interface ItineraryNode {
   poi: Poi | null
   start_time: string | null
   end_time: string | null
+  city: string | null
 }
 
 export interface TripPoi {

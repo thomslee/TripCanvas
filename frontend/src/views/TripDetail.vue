@@ -149,7 +149,7 @@ async function onSeed() {
   try {
     await timelineApi.seed(tripId)
     await refresh()
-    showToast('已生成默认骨架')
+    showToast('已生成行程骨架，可自行添加节点')
   } catch (e) {
     showToast((e as Error).message)
   }
@@ -351,7 +351,7 @@ watch(
           </svg>
         </div>
         <div class="empty-title">开始规划这段行程</div>
-        <div class="empty-desc">AI 将根据目的地、航班时间和偏好，智能生成每日景点、餐厅和酒店安排</div>
+        <div class="empty-desc">AI生成完整行程，或生成仅含到达站/出发站的骨架后自行添加节点</div>
         <div class="empty-actions">
           <button class="ai-generate-btn" :disabled="aiPlanning" @click="onAIPlan">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -359,7 +359,7 @@ watch(
             </svg>
             {{ aiPlanning ? 'AI 正在生成…' : 'AI 生成行程' }}
           </button>
-          <button class="seed-btn" @click="onSeed">生成默认骨架</button>
+          <button class="seed-btn" @click="onSeed">生成行程骨架</button>
         </div>
         <div v-if="aiPlanning" class="ai-loading-hint">大模型正在规划中，通常需要 5-15 秒…</div>
       </div>
@@ -414,20 +414,22 @@ watch(
           </div>
         </div>
         <div class="op-row">
-          <button v-if="tripStatus !== 'finalized'" class="ai-btn" :disabled="finalizing" @click="onFinalize">
-            {{ finalizing ? '定稿中…' : '行程定稿' }}
+          <button class="action-btn blue" :disabled="replanning" @click="onReplan">
+            {{ replanning ? '优化中…' : 'AI优化' }}
           </button>
-          <button v-else class="export-btn" :disabled="finalizing" @click="onUnfinalize">
-            {{ finalizing ? '处理中…' : '取消定稿' }}
-          </button>
-          <button class="ai-btn" :disabled="replanning" @click="onReplan">
-            {{ replanning ? '优化中…' : 'AI 优化' }}
-          </button>
-          <button class="replace-btn" :disabled="autoReplacing" @click="onAutoReplace">
+          <button class="action-btn blue" :disabled="autoReplacing" @click="onAutoReplace">
             {{ autoReplacing ? '校正中…' : '地点校正' }}
           </button>
-          <button class="replace-btn" :disabled="recalcLoading" @click="onRecalcTransport">
+          <button class="action-btn blue" :disabled="recalcLoading" @click="onRecalcTransport">
             {{ recalcLoading ? '计算中…' : '交通规划' }}
+          </button>
+        </div>
+        <div class="finalize-row">
+          <button v-if="tripStatus !== 'finalized'" class="action-btn green" :disabled="finalizing" @click="onFinalize">
+            {{ finalizing ? '定稿中…' : '行程定稿' }}
+          </button>
+          <button v-else class="action-btn green" :disabled="finalizing" @click="onUnfinalize">
+            {{ finalizing ? '处理中…' : '取消定稿' }}
           </button>
         </div>
         <div class="export-row">
@@ -437,7 +439,7 @@ watch(
           <button class="export-btn" @click="openShare">分享</button>
         </div>
         <div class="hint">
-          先看上方真实地点清单，再在下方轨迹图中调整；点占位节点可替换为真实地点，点「真实」节点查看营业时间/票价等。
+          使用流程：AI优化调整行程 → 地点校正关联高德真实地点 → 交通规划计算距离用时 → 行程定稿 → 导出PDF或分享。
         </div>
       </div>
 
@@ -593,11 +595,45 @@ watch(
   box-sizing: border-box;
 }
 .op-row {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   gap: 10px;
   align-items: center;
-  flex-wrap: wrap;
+}
+.op-row .action-btn {
+  flex: 1;
+}
+.finalize-row {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+.finalize-row .action-btn {
+  min-width: 160px;
+  padding: 8px 32px;
+}
+.action-btn {
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 0;
+  cursor: pointer;
+  color: #fff;
+}
+.action-btn.blue {
+  background: #1677ff;
+}
+.action-btn.blue:disabled {
+  background: #91caff;
+  cursor: not-allowed;
+}
+.action-btn.green {
+  background: #0e9f6e;
+}
+.action-btn.green:disabled {
+  background: #6ee7b7;
+  cursor: not-allowed;
 }
 .export-row {
   margin-top: 8px;
@@ -712,36 +748,6 @@ watch(
   font-size: 12px;
   color: var(--tc-ink-3);
   padding: 8px 0;
-}
-.ai-btn {
-  border: 1px solid var(--tc-teal);
-  background: var(--tc-teal);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  border-radius: 8px;
-  padding: 5px 16px;
-  cursor: pointer;
-  flex: none;
-}
-.ai-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.replace-btn {
-  border: 1px solid #1677ff;
-  background: #1677ff;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  border-radius: 8px;
-  padding: 5px 14px;
-  cursor: pointer;
-  flex: none;
-}
-.replace-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 .hint {
   margin-top: 10px;

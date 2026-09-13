@@ -86,7 +86,7 @@ def compute_day_windows(depart_date: date, arrive_time: time | None,
             end = _add_minutes(depart_time, -return_lead)
             note = "返程前结束（提前%d分钟到%s）" % (return_lead, return_label) if return_lead > 0 else "返程前结束"
         if i == total_days and depart_time is None:
-            note = "返程起飞时刻未填，默认全天"
+            note = "返程出发时刻未填，默认全天"
 
         if end <= start:
             # 时间窗异常（如半夜到达），至少给 2h
