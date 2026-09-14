@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime as dt
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PoiSummary(BaseModel):
@@ -57,6 +57,18 @@ class NodeOut(BaseModel):
     # 由时间线计算得出，仅展示不落库
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    # 坐标：优先节点自身，缺省时取关联 POI（高德真实地点）
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+
+    @model_validator(mode="after")
+    def _fill_coords_from_poi(self):
+        if (self.lat is None or self.lng is None) and self.poi:
+            if self.lat is None:
+                self.lat = self.poi.lat
+            if self.lng is None:
+                self.lng = self.poi.lng
+        return self
 
 
 class EdgeOut(BaseModel):
