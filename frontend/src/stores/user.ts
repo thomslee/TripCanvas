@@ -41,5 +41,9 @@ export const useUserStore = defineStore('user', () => {
     user.value = null
   }
 
-  return { user, loading, isLoggedIn, isAdmin, login, register, fetchMe, logout }
+  function setUser(u: AuthUser) {
+    user.value = u
+  }
+
+  return { user, loading, isLoggedIn, isAdmin, login, register, fetchMe, logout, setUser }
 })

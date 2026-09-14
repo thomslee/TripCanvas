@@ -12,5 +12,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)
     nickname = Column(String(64), nullable=True)
     role = Column(String(16), nullable=False, default="user")  # admin / user
-    preferences = Column(JSON, nullable=True)  # 兴趣/节奏/预算/人数
+    gender = Column(String(8), nullable=True)  # 男/女/保密
+    age = Column(Integer, nullable=True)
+    identity = Column(String(16), nullable=True)  # 学生/职工/退休/其他
+    preferences = Column(JSON, nullable=True)  # 兴趣标签，如["美食","购物","摄影"]
     created_at = Column(DateTime, default=datetime.now)

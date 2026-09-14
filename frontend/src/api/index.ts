@@ -310,6 +310,10 @@ export interface AuthUser {
   username: string
   nickname: string | null
   role: 'admin' | 'user'
+  gender: string | null
+  age: number | null
+  identity: string | null
+  preferences: string[] | null
 }
 
 export interface AuthResult {
@@ -325,6 +329,13 @@ export const authApi = {
   me: () => http.get<AuthUser>('/auth/me'),
   changePassword: (old_password: string, new_password: string) =>
     http.put('/auth/me/password', { old_password, new_password }),
+  updateProfile: (data: {
+    nickname?: string | null
+    gender?: string | null
+    age?: number | null
+    identity?: string | null
+    preferences?: string[] | null
+  }) => http.put<AuthUser>('/auth/me', data),
 }
 
 export interface AdminUser {

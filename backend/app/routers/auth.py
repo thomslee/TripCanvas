@@ -27,6 +27,10 @@ class UserOut(BaseModel):
     username: str
     nickname: str | None
     role: str
+    gender: str | None = None
+    age: int | None = None
+    identity: str | None = None
+    preferences: list[str] | None = None
 
     class Config:
         from_attributes = True
@@ -35,6 +39,14 @@ class UserOut(BaseModel):
 class AuthOut(BaseModel):
     token: str
     user: UserOut
+
+
+class ProfileUpdateIn(BaseModel):
+    nickname: str | None = None
+    gender: str | None = None
+    age: int | None = None
+    identity: str | None = None
+    preferences: list[str] | None = None
 
 
 @router.post("/register", response_model=AuthOut, status_code=201)
@@ -60,6 +72,25 @@ class ChangePasswordIn(BaseModel):
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.put("/me", response_model=UserOut)
+def update_profile(data: ProfileUpdateIn, db: Session = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
+    """更新当前用户资料（昵称、性别、年龄、身份、喜好）。"""
+    if data.nickname is not None:
+        current_user.nickname = data.nickname
+    if data.gender is not None:
+        current_user.gender = data.gender
+    if data.age is not None:
+        current_user.age = data.age
+    if data.identity is not None:
+        current_user.identity = data.identity
+    if data.preferences is not None:
+        current_user.preferences = data.preferences
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

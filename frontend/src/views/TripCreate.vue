@@ -21,7 +21,14 @@ const form = reactive({
   pace: 'relaxed',
   budget: 'mid',
   travelers: 1,
+  travelType: '',
 })
+
+const travelTypeOptions = [
+  { name: '单人游', value: 'solo' },
+  { name: '结伴游', value: 'companion' },
+  { name: '家庭游', value: 'family' },
+]
 
 const transportOptions = [
   { name: '飞机', value: 'plane' },
@@ -117,6 +124,7 @@ function resetForm() {
   form.pace = 'relaxed'
   form.budget = 'mid'
   form.travelers = 1
+  form.travelType = ''
 }
 onMounted(resetForm)
 
@@ -234,6 +242,7 @@ async function onSubmit() {
       depart_time: jTime(form.departTime),
       preferences: {
         pace: form.pace, budget: form.budget, travelers: form.travelers,
+        travel_type: form.travelType || null,
         ...(form.requirements.trim() ? { requirements: form.requirements.trim() } : {}),
       },
       dest_cities: form.destCities.map((c) => ({ city: c.city.trim(), days: c.days })),
@@ -342,6 +351,12 @@ function fmtWin(w: DayWindow): string {
       <div class="pref-row">
         <span class="pref-label">人数</span>
         <van-stepper v-model="form.travelers" min="1" max="20" />
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">出行类型</span>
+        <van-radio-group v-model="form.travelType" direction="horizontal">
+          <van-radio v-for="o in travelTypeOptions" :key="o.value" :name="o.value">{{ o.name }}</van-radio>
+        </van-radio-group>
       </div>
       <div class="pref-row pref-col">
         <span class="pref-label">旅游要求</span>

@@ -96,7 +96,10 @@ const statusText: Record<string, string> = {
       >
         <div class="trip-top">
           <span class="trip-title">{{ t.title }}</span>
-          <span class="trip-status" :class="t.status">{{ statusText[t.status] || t.status }}</span>
+          <div class="trip-top-right">
+            <span class="trip-id">ID: {{ t.id }}</span>
+            <span class="trip-status" :class="t.status">{{ statusText[t.status] || t.status }}</span>
+          </div>
         </div>
         <div class="trip-meta">
           <span>{{ t.depart_city }} → {{ t.dest_city }}</span>
@@ -262,6 +265,16 @@ const statusText: Record<string, string> = {
 .trip-status.finalized {
   background: #fff3e0;
   color: #e65100;
+}
+.trip-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trip-id {
+  font-size: 11px;
+  color: #8a9a97;
+  font-weight: 600;
 }
 .trip-meta {
   display: flex;

@@ -8,7 +8,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge, Poi
+from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge, Poi, User
 from . import seed_planner, ai_planner, llm_service
 
 
@@ -81,6 +81,9 @@ def replan_trip(db: Session, trip: Trip) -> dict:
     if not days:
         raise ValueError('行程没有天数记录')
 
+    # 获取用户画像
+    user = db.query(User).filter(User.id == trip.user_id).first() if trip.user_id else None
+
     # 收集用户确定的所有地点（去重）
     all_nodes = (db.query(ItineraryNode)
                  .filter(ItineraryNode.trip_id == trip.id)
@@ -96,7 +99,7 @@ def replan_trip(db: Session, trip: Trip) -> dict:
             user_pois.append(f"{name}（{type_name}）")
 
     # 构建优化prompt
-    prompt = _build_replan_prompt(trip, days, user_pois)
+    prompt = _build_replan_prompt(trip, days, user_pois, user=user)
     messages = [{'role': 'user', 'content': prompt}]
 
     try:
@@ -162,6 +165,23 @@ def replan_trip(db: Session, trip: Trip) -> dict:
             sort_order += 1
             total_nodes += 1
 
+    db.flush()
+
+    # 给到达站和出发站设置固定start_time
+    transport_lead = {'plane': 120, 'train': 60, 'ship': 90, 'car': 0}
+    return_lead = transport_lead.get(trip.return_transport, 120)
+    for day in days:
+        siblings = (db.query(ItineraryNode)
+                    .filter(ItineraryNode.day_id == day.id)
+                    .order_by(ItineraryNode.sort_order, ItineraryNode.id)
+                    .all())
+        stations = [n for n in siblings if n.node_type == 'station']
+        if day.day_no == 1 and trip.arrive_time and stations:
+            stations[0].start_time = trip.arrive_time
+        if day.day_no == trip.total_days and trip.depart_time and stations:
+            depart_station = stations[-1]
+            depart_station.start_time = (dt.datetime.combine(dt.date.today(), trip.depart_time) - dt.timedelta(minutes=return_lead)).time()
+
     # 重建边
     for day in days:
         ordered = (db.query(ItineraryNode)
@@ -186,7 +206,7 @@ def replan_trip(db: Session, trip: Trip) -> dict:
     }
 
 
-def _build_replan_prompt(trip: Trip, days: list[TripDay], user_pois: list[str]) -> str:
+def _build_replan_prompt(trip: Trip, days: list[TripDay], user_pois: list[str], user: User | None = None) -> str:
     """构建AI优化prompt：要求AI保留用户地点，重新规划顺序和时间。"""
     cities = [d.city or trip.dest_city for d in days]
     city_summary = '、'.join(sorted(set(cities)))
@@ -217,6 +237,42 @@ def _build_replan_prompt(trip: Trip, days: list[TripDay], user_pois: list[str]) 
         lines.append('- 返程交通：%s%s' % (
             transport_names.get(trip.return_transport, trip.return_transport),
             '，从%s出发' % trip.depart_station if trip.depart_station else ''))
+
+    # 出行类型
+    if trip.preferences and isinstance(trip.preferences, dict):
+        travel_type = trip.preferences.get('travel_type')
+        if travel_type:
+            type_names = {'solo': '单人游', 'companion': '结伴游', 'family': '家庭游'}
+            type_name = type_names.get(travel_type, travel_type)
+            lines.append('- 出行类型：%s' % type_name)
+            if travel_type == 'solo':
+                lines.append('  - 单人游：可安排更多自由探索时间，推荐青旅或特色民宿，行程可更灵活')
+            elif travel_type == 'companion':
+                lines.append('  - 结伴游：适合互动性强的景点和活动，推荐双人房，可安排一些共同体验项目')
+            elif travel_type == 'family':
+                lines.append('  - 家庭游：行程节奏放缓，推荐亲子友好景点，避免过于劳累，餐厅选择要适合全家')
+
+    # 用户画像
+    if user:
+        profile_parts = []
+        if user.gender:
+            profile_parts.append('性别：%s' % user.gender)
+        if user.age:
+            profile_parts.append('年龄：%d岁' % user.age)
+        if user.identity:
+            profile_parts.append('身份：%s' % user.identity)
+        if user.preferences:
+            if isinstance(user.preferences, list):
+                profile_parts.append('喜好：%s' % '、'.join(user.preferences))
+            elif isinstance(user.preferences, dict):
+                import json
+                profile_parts.append('喜好：%s' % json.dumps(user.preferences, ensure_ascii=False))
+        if profile_parts:
+            lines.append('')
+            lines.append('【用户画像】')
+            for p in profile_parts:
+                lines.append('- %s' % p)
+            lines.append('请根据用户画像调整行程：美食爱好者多安排特色餐厅，购物爱好者安排商圈，摄影爱好者推荐拍照点，退休人员节奏放缓，学生推荐性价比高的选择。')
 
     lines += [
         '',

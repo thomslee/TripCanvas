@@ -368,7 +368,15 @@ watch(
       <div class="tc-card trip-head">
         <div class="head-row1">
           <span class="head-title">{{ title }}</span>
-          <span class="badge" :class="tripStatus">{{ STATUS_TEXT[tripStatus] || tripStatus }}</span>
+          <div class="head-right">
+            <span class="badge" :class="tripStatus">{{ STATUS_TEXT[tripStatus] || tripStatus }}</span>
+            <button class="back-btn" @click="router.push('/')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
+              </svg>
+              返回
+            </button>
+          </div>
         </div>
         <div class="head-route">
           {{ timeline.dest_city }} · {{ dateRange }} · {{ timeline.days.length }}天
@@ -558,6 +566,29 @@ watch(
 .badge.finalized {
   background: #fff3e0;
   color: #e65100;
+}
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #0e7c7e;
+  background: rgba(14, 124, 126, 0.08);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.back-btn:active {
+  background: rgba(14, 124, 126, 0.16);
 }
 .head-row1 {
   display: flex;

@@ -13,12 +13,60 @@ const newPwd = ref('')
 const confirmPwd = ref('')
 const pwdLoading = ref(false)
 
+// 用户资料
+const nickname = ref('')
+const gender = ref('')
+const age = ref<number | ''>('')
+const identity = ref('')
+const preferences = ref<string[]>([])
+const profileLoading = ref(false)
+
+const GENDER_OPTIONS = ['男', '女', '保密']
+const IDENTITY_OPTIONS = ['学生', '职工', '退休', '其他']
+const PREFERENCE_OPTIONS = ['美食', '购物', '摄影', '历史文化', '自然风光', '户外运动', '艺术展览', '夜生活']
+
 const users = ref<AdminUser[]>([])
 const usersLoading = ref(false)
 
 onMounted(() => {
+  // 加载当前用户资料
+  if (userStore.user) {
+    nickname.value = userStore.user.nickname || ''
+    gender.value = userStore.user.gender || ''
+    age.value = userStore.user.age || ''
+    identity.value = userStore.user.identity || ''
+    preferences.value = userStore.user.preferences || []
+  }
   if (userStore.isAdmin) loadUsers()
 })
+
+function togglePreference(p: string) {
+  const idx = preferences.value.indexOf(p)
+  if (idx >= 0) {
+    preferences.value.splice(idx, 1)
+  } else {
+    preferences.value.push(p)
+  }
+}
+
+async function onSaveProfile() {
+  profileLoading.value = true
+  try {
+    const { data } = await authApi.updateProfile({
+      nickname: nickname.value || null,
+      gender: gender.value || null,
+      age: age.value === '' ? null : Number(age.value),
+      identity: identity.value || null,
+      preferences: preferences.value.length > 0 ? preferences.value : null,
+    })
+    userStore.setUser(data)
+    showToast('资料已保存')
+  } catch (e: any) {
+    showToast(e.message || '保存失败')
+  } finally {
+    profileLoading.value = false
+  }
+}
 
 async function onChangePwd() {
   if (!oldPwd.value || !newPwd.value) {
@@ -99,6 +147,46 @@ function onLogout() {
           </span>
         </div>
       </div>
+    </div>
+
+    <!-- 个人资料 -->
+    <div class="section">
+      <div class="section-title">个人资料 <span class="section-hint">（选填，用于AI个性化规划）</span></div>
+      <div class="form-group">
+        <label>昵称</label>
+        <input v-model="nickname" type="text" placeholder="请输入昵称" />
+      </div>
+      <div class="form-group">
+        <label>性别</label>
+        <div class="option-group">
+          <span v-for="g in GENDER_OPTIONS" :key="g"
+                class="option-tag" :class="{ active: gender === g }"
+                @click="gender = g">{{ g }}</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>年龄</label>
+        <input v-model.number="age" type="number" min="1" max="120" placeholder="请输入年龄" />
+      </div>
+      <div class="form-group">
+        <label>身份</label>
+        <div class="option-group">
+          <span v-for="i in IDENTITY_OPTIONS" :key="i"
+                class="option-tag" :class="{ active: identity === i }"
+                @click="identity = i">{{ i }}</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>喜好（可多选）</label>
+        <div class="option-group">
+          <span v-for="p in PREFERENCE_OPTIONS" :key="p"
+                class="option-tag" :class="{ active: preferences.includes(p) }"
+                @click="togglePreference(p)">{{ p }}</span>
+        </div>
+      </div>
+      <button class="primary-btn" :disabled="profileLoading" @click="onSaveProfile">
+        {{ profileLoading ? '保存中…' : '保存资料' }}
+      </button>
     </div>
 
     <!-- 修改密码 -->
@@ -214,6 +302,11 @@ function onLogout() {
   color: #1a2a27;
   margin-bottom: 14px;
 }
+.section-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #8a9a97;
+}
 .form-group {
   margin-bottom: 12px;
 }
@@ -235,6 +328,26 @@ function onLogout() {
 }
 .form-group input:focus {
   border-color: #0e7c7e;
+}
+.option-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.option-tag {
+  padding: 6px 14px;
+  border: 1px solid #d8e0de;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #5a6a67;
+  cursor: pointer;
+  background: #f7f9f8;
+  transition: all 0.2s;
+}
+.option-tag.active {
+  background: linear-gradient(135deg, #0e7c7e, #12a5a8);
+  color: #fff;
+  border-color: transparent;
 }
 .primary-btn {
   width: 100%;

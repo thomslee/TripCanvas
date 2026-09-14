@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """AI 行程规划引擎：调用大模型生成每日节点安排。"""
 import json
+import datetime
 from sqlalchemy.orm import Session
-from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge, Poi
+from ..models import Trip, TripDay, ItineraryNode, ItineraryEdge, Poi, User
 from ..services import llm_service, seed_planner
 
 _TYPE_MAP = {
@@ -16,7 +17,7 @@ _TYPE_MAP = {
 _VALID_TYPES = {'hotel', 'attraction', 'restaurant', 'station'}
 
 
-def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
+def _build_prompt(trip: Trip, days: list[TripDay], user: User | None = None) -> str:
     """构建行程规划 prompt。"""
     cities = [d.city or trip.dest_city for d in days]
     city_summary = '、'.join(sorted(set(cities)))
@@ -53,11 +54,53 @@ def _build_prompt(trip: Trip, days: list[TripDay]) -> str:
             req = prefs.get('requirements') or prefs.get('travel_requirements')
             if req:
                 lines.append('- 旅游要求：%s' % req)
+            # 出行类型特殊处理
+            travel_type = prefs.get('travel_type')
+            if travel_type:
+                type_names = {'solo': '单人游', 'companion': '结伴游', 'family': '家庭游'}
+                type_name = type_names.get(travel_type, travel_type)
+                lines.append('- 出行类型：%s' % type_name)
+                if travel_type == 'solo':
+                    lines.append('  - 单人游：可安排更多自由探索时间，推荐青旅或特色民宿，行程可更灵活')
+                elif travel_type == 'companion':
+                    lines.append('  - 结伴游：适合互动性强的景点和活动，推荐双人房，可安排一些共同体验项目')
+                elif travel_type == 'family':
+                    lines.append('  - 家庭游：行程节奏放缓，推荐亲子友好景点，避免过于劳累，餐厅选择要适合全家')
             for k, v in prefs.items():
-                if k not in ('requirements', 'travel_requirements'):
+                if k not in ('requirements', 'travel_requirements', 'travel_type'):
                     lines.append('- %s：%s' % (k, v))
         else:
             lines.append('- 用户偏好：%s' % json.dumps(prefs, ensure_ascii=False))
+
+    # 用户画像
+    if user:
+        profile_parts = []
+        if user.gender:
+            profile_parts.append('性别：%s' % user.gender)
+        if user.age:
+            profile_parts.append('年龄：%d岁' % user.age)
+        if user.identity:
+            profile_parts.append('身份：%s' % user.identity)
+        if user.preferences:
+            if isinstance(user.preferences, list):
+                profile_parts.append('喜好：%s' % '、'.join(user.preferences))
+            elif isinstance(user.preferences, dict):
+                profile_parts.append('喜好：%s' % json.dumps(user.preferences, ensure_ascii=False))
+        if profile_parts:
+            lines.append('')
+            lines.append('【用户画像】')
+            for p in profile_parts:
+                lines.append('- %s' % p)
+            lines.append('')
+            lines.append('请根据用户画像调整行程：')
+            lines.append('- 美食爱好者：每天至少安排1-2个当地特色餐厅')
+            lines.append('- 购物爱好者：适当安排商圈、夜市')
+            lines.append('- 摄影爱好者：推荐适合拍照的景点和时间')
+            lines.append('- 历史文化爱好者：优先推荐博物馆、古迹')
+            lines.append('- 自然风光爱好者：优先推荐自然景观')
+            lines.append('- 学生：推荐性价比高的住宿和餐饮')
+            lines.append('- 退休：行程节奏放缓，避免长时间步行和过于紧凑的安排')
+            lines.append('- 根据年龄调整行程强度，年龄较大者需要更多休息时间')
 
     lines += [
         '',
@@ -139,12 +182,15 @@ def ai_plan_trip(db: Session, trip: Trip) -> dict:
     if not days:
         raise ValueError('行程没有天数记录')
 
+    # 获取用户画像
+    user = db.query(User).filter(User.id == trip.user_id).first() if trip.user_id else None
+
     # 清空已有节点和边
     db.query(ItineraryEdge).filter(ItineraryEdge.trip_id == trip.id).delete()
     db.query(ItineraryNode).filter(ItineraryNode.trip_id == trip.id).delete()
     db.flush()
 
-    prompt = _build_prompt(trip, days)
+    prompt = _build_prompt(trip, days, user=user)
     messages = [{'role': 'user', 'content': prompt}]
     result = llm_service.chat_json(db, messages, temperature=0.8, max_tokens=2000, timeout=90)
 
@@ -209,6 +255,26 @@ def ai_plan_trip(db: Session, trip: Trip) -> dict:
             total_nodes += 1
 
     db.flush()
+
+    # 给到达站和出发站设置固定start_time，确保时间合理
+    # 到达站：第一天第一个station节点，start_time = arrive_time
+    # 出发站：最后一天最后一个station节点，start_time = depart_time - 提前量
+    transport_lead = {'plane': 120, 'train': 60, 'ship': 90, 'car': 0}
+    return_lead = transport_lead.get(trip.return_transport, 120)
+    for day in days:
+        siblings = (db.query(ItineraryNode)
+                    .filter(ItineraryNode.day_id == day.id)
+                    .order_by(ItineraryNode.sort_order, ItineraryNode.id)
+                    .all())
+        stations = [n for n in siblings if n.node_type == 'station']
+        if day.day_no == 1 and trip.arrive_time and stations:
+            # 第一天第一个station是到达站
+            stations[0].start_time = trip.arrive_time
+        if day.day_no == trip.total_days and trip.depart_time and stations:
+            # 最后一天最后一个station是出发站
+            depart_station = stations[-1]
+            from datetime import timedelta
+            depart_station.start_time = (datetime.datetime.combine(datetime.date.today(), trip.depart_time) - timedelta(minutes=return_lead)).time()
 
     # 重建每天的边
     for day in days:
